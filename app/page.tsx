@@ -2,20 +2,9 @@
 
 import { useRef, useMemo } from "react";
 import * as THREE from "three";
-import { Canvas, useThree, useFrame, extend } from "@react-three/fiber";
+import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { Leva, useControls } from "leva";
-import { MeshBasicMaterial, InstancedMesh, SphereGeometry } from "three";
-import { Sphere } from "@react-three/drei";
-
-extend({ MeshBasicMaterial, InstancedMesh, Sphere });
-
-function calculateMinDiameter(nodes: number, nodeSize: number): number {
-  return Math.sqrt(nodes) * nodeSize * 0.3;
-}
-
-function calculateMaxDiameter(nodes: number, nodeSize: number): number {
-  return Math.sqrt(nodes) * nodeSize * 1.2;
-}
+import { InstancedMesh, SphereGeometry } from "three";
 
 // Updating the Cluster component to resemble a TSNE map
 interface ClusterProps {
@@ -109,44 +98,28 @@ function Clusters() {
   const settings = useControls("Settings", {
     clusters: { value: 8, min: 4, max: 80, step: 2 },
     nodes: { value: 1000, min: 100, max: 10000, step: 20 },
-    clusterColors: {
-      value: [
-        "red",
-        "green",
-        "blue",
-        "orange",
-        "purple",
-        "yellow",
-        "pink",
-        "cyan",
-        "magenta",
-        "lime",
-        "brown",
-        "white",
-        "gray",
-      ],
-      options: [
-        "red",
-        "green",
-        "blue",
-        "orange",
-        "purple",
-        "yellow",
-        "pink",
-        "cyan",
-        "magenta",
-        "lime",
-        "brown",
-        "white",
-        "gray",
-      ],
-    },
     clusterDistance: { value: 0.2, min: 0.1, max: 0.3, step: 0.02 },
     nodeDistance: { value: 0.15, min: 0.1, max: 1, step: 0.01 },
     nodeSize: { value: 0.01, min: 0.001, max: 0.2, step: 0.002 },
     minClusterDiameter: { value: 3, min: 1, max: 4, step: 1 },
     maxClusterDiameter: { value: 7, min: 5, max: 7, step: 1 },
   });
+
+  const colors = [
+    "red",
+    "green",
+    "blue",
+    "orange",
+    "purple",
+    "yellow",
+    "pink",
+    "cyan",
+    "magenta",
+    "lime",
+    "brown",
+    "white",
+    "gray",
+  ];
 
   return (
     <>
@@ -162,7 +135,7 @@ function Clusters() {
             position={[x, y, 0]}
             clusters={settings.clusters}
             nodes={settings.nodes}
-            color={settings.clusterColors[i % settings.clusterColors.length]}
+            color={colors[i % colors.length]}
             nodeDistance={settings.nodeDistance}
             nodeSize={settings.nodeSize}
             minClusterDiameter={settings.minClusterDiameter}
