@@ -9,63 +9,78 @@ import { InstancedMesh, SphereGeometry } from "three";
 // Updating the Cluster component to resemble a TSNE map
 interface ClusterProps {
   position: [number, number, number];
-  nodes: number;
-  clusters: number;
   color: string;
+  nodeCount: number;
   nodeDistance: number;
   nodeSize: number;
-  minClusterDiameter: number;
-  maxClusterDiameter: number;
+  minRadius: number;
+  maxRadius: number;
+}
+
+// Function to generate random positions for each node to resemble a cloud of points
+function generateInitialPositions(
+  nodeCount: number,
+  clusterRadius: number,
+  position: [number, number, number]
+): [number, number, number][] {
+  return Array.from({
+    length: nodeCount,
+  }).map((): [number, number, number] => {
+    const radius = clusterRadius;
+    const theta = Math.random() * 2 * Math.PI; // azimuthal angle
+    const phi = Math.acos(2 * Math.random() - 1); // polar angle
+
+    // Convert spherical to Cartesian coordinates
+    const x = position[0] + radius * Math.sin(phi) * Math.cos(theta);
+    const y = position[1] + radius * Math.sin(phi) * Math.sin(theta);
+    const z = position[2] + radius * Math.cos(phi);
+
+    return [x, y, z];
+  });
+}
+
+// Function to scale the distance from the center of the cluster
+function scalePositions(
+  nodeDistance: number,
+  position: [number, number, number],
+  initialPositions: [number, number, number][]
+) {
+  return initialPositions.map(([x, y, z]) => {
+    const dx = x - position[0];
+    const dy = y - position[1];
+    const dz = z - position[2];
+
+    const scale = nodeDistance;
+    return [
+      position[0] + dx * scale,
+      position[1] + dy * scale,
+      position[2] + dz * scale,
+    ];
+  });
 }
 
 function Cluster({
   position,
-  clusters,
-  nodes,
+  nodeCount,
   color,
   nodeDistance,
   nodeSize,
-  minClusterDiameter,
-  maxClusterDiameter,
+  minRadius,
+  maxRadius,
 }: ClusterProps) {
   const clusterRadius = useRef(
-    Math.random() * (maxClusterDiameter - minClusterDiameter) +
-      minClusterDiameter
+    Math.random() * (maxRadius - minRadius) + minRadius
   );
 
-  // Generate random positions for each node to resemble a cloud of points
-  const initialPositions: [number, number, number][] = useMemo(() => {
-    return Array.from({
-      length: nodes,
-    }).map(() => {
-      const radius = clusterRadius.current;
-      const theta = Math.random() * 2 * Math.PI; // azimuthal angle
-      const phi = Math.acos(2 * Math.random() - 1); // polar angle
+  const initialPositions: [number, number, number][] = useMemo(
+    () => generateInitialPositions(nodeCount, clusterRadius.current, position),
+    [nodeCount, clusterRadius]
+  );
 
-      // Convert spherical to Cartesian coordinates
-      const x = position[0] + radius * Math.sin(phi) * Math.cos(theta);
-      const y = position[1] + radius * Math.sin(phi) * Math.sin(theta);
-      const z = position[2] + radius * Math.cos(phi);
-
-      return [x, y, z];
-    });
-  }, [nodes, clusterRadius]);
-
-  const positions = useMemo(() => {
-    return initialPositions.map(([x, y, z]) => {
-      const dx = x - position[0];
-      const dy = y - position[1];
-      const dz = z - position[2];
-
-      // Scale the distance from the center of the cluster
-      const scale = nodeDistance;
-      return [
-        position[0] + dx * scale,
-        position[1] + dy * scale,
-        position[2] + dz * scale,
-      ];
-    });
-  }, [nodeDistance, position, initialPositions]);
+  const positions = useMemo(
+    () => scalePositions(nodeDistance, position, initialPositions),
+    [nodeDistance, position, initialPositions]
+  );
 
   const meshRef = useRef<InstancedMesh>(null!);
   const matrix = new THREE.Matrix4();
@@ -87,7 +102,7 @@ function Cluster({
       args={[
         new SphereGeometry(nodeSize, 16, 16),
         new THREE.MeshBasicMaterial({ color }),
-        nodes,
+        nodeCount,
       ]}
     />
   );
@@ -97,12 +112,12 @@ function Clusters() {
   const { viewport } = useThree(); // Get viewport size
   const settings = useControls("Settings", {
     clusters: { value: 8, min: 4, max: 80, step: 2 },
-    nodes: { value: 1000, min: 100, max: 10000, step: 20 },
+    nodeCount: { value: 1000, min: 100, max: 10000, step: 20 },
     clusterDistance: { value: 0.2, min: 0.1, max: 0.3, step: 0.02 },
     nodeDistance: { value: 0.15, min: 0.1, max: 1, step: 0.01 },
     nodeSize: { value: 0.01, min: 0.001, max: 0.2, step: 0.002 },
-    minClusterDiameter: { value: 3, min: 1, max: 4, step: 1 },
-    maxClusterDiameter: { value: 7, min: 5, max: 7, step: 1 },
+    minRadius: { value: 3, min: 1, max: 4, step: 1 },
+    maxRadius: { value: 7, min: 5, max: 7, step: 1 },
   });
 
   const colors = [
@@ -133,13 +148,12 @@ function Clusters() {
           <Cluster
             key={i}
             position={[x, y, 0]}
-            clusters={settings.clusters}
-            nodes={settings.nodes}
+            nodeCount={settings.nodeCount}
             color={colors[i % colors.length]}
             nodeDistance={settings.nodeDistance}
             nodeSize={settings.nodeSize}
-            minClusterDiameter={settings.minClusterDiameter}
-            maxClusterDiameter={settings.maxClusterDiameter}
+            minRadius={settings.minRadius}
+            maxRadius={settings.maxRadius}
           />
         );
       })}
