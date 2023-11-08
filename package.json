@@ -9,11 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-spring/three": "^9.7.3",
     "@react-three/cannon": "^6.6.0",
     "@react-three/drei": "^9.88.11",
     "@react-three/fiber": "^8.15.9",
-    "@types/d3-force": "^3.0.8",
-    "@types/three": "^0.158.1",
     "d3-force": "^3.0.0",
     "d3-hierarchy": "^3.1.2",
     "leva": "^0.9.35",
@@ -28,6 +27,8 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/d3-force": "^3.0.8",
+    "@types/three": "^0.158.2",
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.0.1",

@@ -3,33 +3,18 @@
 import * as THREE from "three";
 import { Leva, useControls } from "leva";
 import { SphereGeometry } from "three";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, invalidate, useThree } from "@react-three/fiber";
 import { packSiblings } from "d3-hierarchy";
-import { useEffect } from "react";
-import { Html } from "@react-three/drei";
+import { useEffect, useMemo, useState } from "react";
+import { Html, useDetectGPU } from "@react-three/drei";
+import { useSpring } from "@react-spring/core";
+import { a } from "@react-spring/three";
 
 const CONTROL_SETTINGS = {
   sphereDistance: { value: 2, min: 0, max: 50, step: 0.01 },
 };
 
-const COLORS = [
-  "#AAAAAA",
-  "#CCCCCC",
-  "#111111",
-  "#a6a6a6",
-  "#222222",
-  "#a9a9a9",
-  "#333333",
-  "#333444",
-  "#444444",
-  "#3a3a3a",
-  "#b2b2b2",
-  "#CCCCCC",
-  "#DDDDDD",
-  "#EEEEEE",
-  "#888888",
-  "#e8e8e8",
-];
+const COLORS = ["#777"];
 
 const material = {
   roughness: 1,
@@ -147,25 +132,57 @@ function calculateSpherePositions(
   };
 }
 
-function Sphere({ position, diameter, color, name }) {
+function Sphere({
+  position,
+  diameter,
+  color,
+  name,
+  isFocused,
+}: {
+  position: [number, number, number];
+  diameter: number;
+  color: string;
+  name: string;
+  isFocused: boolean;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+
   const vectorPosition = new THREE.Vector3(...position);
 
-  console.log(diameter);
+  const { scale } = useSpring({
+    scale: isHovered || isFocused ? 1.13 : 1,
+    config: { mass: 5, tension: 400, friction: 50, precision: 0.001 },
+  });
+
+  console.log(scale);
 
   return (
     <>
-      <instancedMesh
+      {/* @ts-ignore */}
+      <a.instancedMesh
         position={vectorPosition}
+        scale={scale}
+        onPointerOver={() => {
+          setIsHovered(true);
+        }}
+        onPointerOut={() => {
+          setIsHovered(false);
+        }}
         args={[
           new SphereGeometry(diameter / 2, 32, 32),
-          new THREE.MeshPhysicalMaterial({ ...material, color }),
+          new THREE.MeshPhysicalMaterial({
+            ...material,
+            color,
+          }),
           1,
         ]}
       />
-      <Html position={vectorPosition}>
+
+      <Html position={vectorPosition} style={{ pointerEvents: "none" }}>
         <div
           style={{
             display: "flex",
+            userSelect: "none",
             alignItems: "center",
             justifyContent: "center",
             minHeight: `${diameter}px`,
@@ -186,8 +203,7 @@ function Sphere({ position, diameter, color, name }) {
 }
 
 function Visualization() {
-  const { sphereCount, sphereDistance, minDiameter, maxDiameter } =
-    useControls(CONTROL_SETTINGS);
+  const { sphereDistance } = useControls(CONTROL_SETTINGS);
   const { camera } = useThree();
 
   // Transform the stub data into a format suitable for sphere generation
@@ -250,7 +266,6 @@ export default function Home() {
     <main className="absolute w-full h-full left-0 top-0">
       <Canvas
         shadows
-        frameloop="demand"
         className="absolute w-full h-full left-0 top-0"
         camera={{ position: [0, 0, 0], fov: 20 }}
         orthographic
