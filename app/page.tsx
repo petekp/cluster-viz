@@ -1,14 +1,14 @@
 "use client";
 
 import * as THREE from "three";
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { Leva, useControls } from "leva";
 import { InstancedMesh, SphereGeometry } from "three";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 
 const CONTROL_SETTINGS = {
-  clusters: { value: 14, min: 4, max: 80, step: 2 },
-  diameter: { value: 0.75, min: 0.1, max: 100, step: 0.01 },
+  clusters: { value: 14, min: 4, max: 80, step: 1 },
+  diameter: { value: 0.75, min: 0.1, max: 20, step: 0.01 },
   distance: { value: 1.4, min: 0.1, max: 10, step: 0.1 },
   nodeCount: { value: 1000, min: 100, max: 10000, step: 20 },
   nodeSize: { value: 0.001, min: 0.001, max: 0.2, step: 0.002 },
@@ -77,16 +77,19 @@ function scalePositions(
 function Cluster({
   color,
   position,
-  diameter,
   nodeCount,
   nodeSize,
 }: {
   color: string;
   position: [number, number, number];
-  diameter: number;
   nodeCount: number;
   nodeSize: number;
 }) {
+  const { viewport } = useThree();
+  const settings = useControls("Settings", CONTROL_SETTINGS);
+  const diameter =
+    settings.diameter * Math.min(viewport.width, viewport.height);
+
   const initialPositionsRef = useRef<[number, number, number][] | null>(null);
 
   if (!initialPositionsRef.current) {
@@ -146,9 +149,8 @@ function Clusters() {
             key={i}
             color={COLORS[i % COLORS.length]}
             position={[x, y, 0]}
-            diameter={settings.diameter * scale} // Scale diameter with viewport size
             nodeCount={settings.nodeCount}
-            nodeSize={settings.nodeSize * scale} // Scale node size with viewport size
+            nodeSize={settings.nodeSize * scale}
           />
         );
       })}
