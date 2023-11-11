@@ -353,6 +353,9 @@ const MyResponsiveHeatMap = ({ data }: { data: typeof mockData }) => {
       valueFormat=">-.2s"
       axisTop={{
         tickRotation: -90,
+        legend: "favoriteproductcategory",
+        legendPosition: "middle",
+        legendOffset: -45,
         renderTick: (tick) => {
           return (
             <animated.text
@@ -376,11 +379,12 @@ const MyResponsiveHeatMap = ({ data }: { data: typeof mockData }) => {
       borderColor="rgba(255,255,255,0.2)"
       inactiveOpacity={0.5}
       axisLeft={{
+        legend: "Segment",
+        legendPosition: "middle",
         tickSize: 5,
         tickPadding: 10,
         tickRotation: 0,
-        legendPosition: "middle",
-        legendOffset: 0,
+        legendOffset: -220,
         renderTick: (tick) => {
           return (
             <animated.text
@@ -406,7 +410,7 @@ const MyResponsiveHeatMap = ({ data }: { data: typeof mockData }) => {
         scheme: "plasma",
 
         minValue: 0,
-        maxValue: 30,
+        maxValue: 60,
       }}
       emptyColor="#FFF"
       labelTextColor="#FFF"
