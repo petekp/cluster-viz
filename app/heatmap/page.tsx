@@ -1,0 +1,428 @@
+"use client";
+
+import { ComputedCell, ResponsiveHeatMap } from "@nivo/heatmap";
+import { useState } from "react";
+import { animated } from "react-spring";
+
+const mockData = [
+  {
+    id: "Loyal Middle-Income Bachelor",
+    data: [
+      {
+        x: "Technology",
+        y: 10,
+      },
+      {
+        x: "Sports",
+        y: 15,
+      },
+      {
+        x: "Fashion",
+        y: 20,
+      },
+      {
+        x: "Books",
+        y: 5,
+      },
+      {
+        x: "Movies",
+        y: 12,
+      },
+      {
+        x: "Travel",
+        y: 18,
+      },
+      {
+        x: "Cooking",
+        y: 13,
+      },
+      {
+        x: "Stationary",
+        y: 7,
+      },
+    ],
+  },
+  {
+    id: "Brand Loyalists with Diverse Interests",
+    data: [
+      {
+        x: "Technology",
+        y: 14,
+      },
+      {
+        x: "Sports",
+        y: 11,
+      },
+      {
+        x: "Fashion",
+        y: 21,
+      },
+      {
+        x: "Books",
+        y: 9,
+      },
+      {
+        x: "Movies",
+        y: 16,
+      },
+      {
+        x: "Travel",
+        y: 12,
+      },
+      {
+        x: "Cooking",
+        y: 10,
+      },
+      {
+        x: "Stationary",
+        y: 7,
+      },
+    ],
+  },
+  {
+    id: "Predicted High LTV Affluent Techies",
+    data: [
+      {
+        x: "Technology",
+        y: 13,
+      },
+      {
+        x: "Sports",
+        y: 17,
+      },
+      {
+        x: "Fashion",
+        y: 19,
+      },
+      {
+        x: "Books",
+        y: 8,
+      },
+      {
+        x: "Movies",
+        y: 11,
+      },
+      {
+        x: "Travel",
+        y: 14,
+      },
+      {
+        x: "Cooking",
+        y: 10,
+      },
+      {
+        x: "Stationary",
+        y: 8,
+      },
+    ],
+  },
+  {
+    id: "High-Value E-mail Users",
+    data: [
+      {
+        x: "Technology",
+        y: 12,
+      },
+      {
+        x: "Sports",
+        y: 18,
+      },
+      {
+        x: "Fashion",
+        y: 20,
+      },
+      {
+        x: "Books",
+        y: 7,
+      },
+      {
+        x: "Movies",
+        y: 10,
+      },
+      {
+        x: "Travel",
+        y: 15,
+      },
+      {
+        x: "Cooking",
+        y: 9,
+      },
+      {
+        x: "Stationary",
+        y: 9,
+      },
+    ],
+  },
+  {
+    id: "Second Purchase Savvy",
+    data: [
+      {
+        x: "Technology",
+        y: 15,
+      },
+      {
+        x: "Sports",
+        y: 10,
+      },
+      {
+        x: "Fashion",
+        y: 22,
+      },
+      {
+        x: "Books",
+        y: 6,
+      },
+      {
+        x: "Movies",
+        y: 13,
+      },
+      {
+        x: "Travel",
+        y: 17,
+      },
+      {
+        x: "Cooking",
+        y: 8,
+      },
+      {
+        x: "Stationary",
+        y: 9,
+      },
+    ],
+  },
+  {
+    id: "High-Value Repeat Customer",
+    data: [
+      {
+        x: "Technology",
+        y: 11,
+      },
+      {
+        x: "Sports",
+        y: 16,
+      },
+      {
+        x: "Fashion",
+        y: 21,
+      },
+      {
+        x: "Books",
+        y: 8,
+      },
+      {
+        x: "Movies",
+        y: 14,
+      },
+      {
+        x: "Travel",
+        y: 12,
+      },
+      {
+        x: "Cooking",
+        y: 9,
+      },
+      {
+        x: "Stationary",
+        y: 9,
+      },
+    ],
+  },
+  {
+    id: "High-Value Sports Enthusiasts",
+    data: [
+      {
+        x: "Technology",
+        y: 13,
+      },
+      {
+        x: "Sports",
+        y: 15,
+      },
+      {
+        x: "Fashion",
+        y: 20,
+      },
+      {
+        x: "Books",
+        y: 7,
+      },
+      {
+        x: "Movies",
+        y: 12,
+      },
+      {
+        x: "Travel",
+        y: 18,
+      },
+      {
+        x: "Cooking",
+        y: 8,
+      },
+      {
+        x: "Stationary",
+        y: 7,
+      },
+    ],
+  },
+  {
+    id: "Mid-Tier Female Shoppers",
+    data: [
+      {
+        x: "Technology",
+        y: 14,
+      },
+      {
+        x: "Sports",
+        y: 11,
+      },
+      {
+        x: "Fashion",
+        y: 22,
+      },
+      {
+        x: "Books",
+        y: 9,
+      },
+      {
+        x: "Movies",
+        y: 16,
+      },
+      {
+        x: "Travel",
+        y: 12,
+      },
+      {
+        x: "Cooking",
+        y: 7,
+      },
+      {
+        x: "Stationary",
+        y: 9,
+      },
+    ],
+  },
+];
+
+const MyResponsiveHeatMap = ({ data }: { data: typeof mockData }) => {
+  const [chartData, setChartData] = useState<typeof mockData>(data);
+  const [sortedLabel, setSortedLabel] = useState("");
+
+  function onClickYLabel(
+    label: string,
+    event: React.MouseEvent<SVGTextElement, MouseEvent>
+  ) {
+    // Find the clicked row
+    const clickedRow = chartData.find((item) => item.id === label);
+
+    if (!clickedRow) return;
+
+    // Sort the x values based on the y values of the clicked row
+    const sortedXValues = [...clickedRow.data]
+      .sort((a, b) => b.y - a.y)
+      .map((item) => item.x);
+
+    // Sort the data of all rows based on the sorted x values
+    const sortedData = chartData.map((item) => ({
+      ...item,
+      data: sortedXValues.map(
+        (x) => item.data.find((d) => d.x === x) || { x, y: 0 }
+      ),
+    }));
+
+    setChartData(sortedData);
+  }
+
+  function onClickXLabel(
+    label: string,
+    event: React.MouseEvent<SVGTextElement, MouseEvent>
+  ) {
+    // Sort the rows based on the y values of the clicked column
+    const sortedData = [...chartData].sort((a, b) => {
+      const aValue = a.data.find((item) => item.x === label)?.y || 0;
+      const bValue = b.data.find((item) => item.x === label)?.y || 0;
+      return bValue - aValue;
+    });
+
+    setChartData(sortedData);
+  }
+
+  return (
+    <ResponsiveHeatMap
+      data={chartData}
+      margin={{ top: 60, right: 90, bottom: 60, left: 240 }}
+      valueFormat=">-.2s"
+      axisTop={{
+        tickRotation: -90,
+        renderTick: (tick) => {
+          return (
+            <animated.text
+              {...tick.animatedProps}
+              fontSize={12}
+              fontWeight={tick.value === sortedLabel ? 700 : 400}
+              y={tick.textY}
+              x={tick.textX - 30}
+              style={{ cursor: "pointer" }}
+              onClick={(e) => {
+                setSortedLabel(tick.value);
+                onClickXLabel(tick.value, e);
+              }}
+            >
+              {tick.value}
+            </animated.text>
+          );
+        },
+      }}
+      borderWidth={1}
+      borderColor="rgba(255,255,255,0.2)"
+      inactiveOpacity={0.5}
+      axisLeft={{
+        tickSize: 5,
+        tickPadding: 10,
+        tickRotation: 0,
+        legendPosition: "middle",
+        legendOffset: 0,
+        renderTick: (tick) => {
+          return (
+            <animated.text
+              {...tick.animatedProps}
+              fontSize={12}
+              x={tick.textX}
+              fontWeight={sortedLabel === tick.value ? 700 : 400}
+              alignmentBaseline="middle"
+              textAnchor="end"
+              style={{ cursor: "pointer" }}
+              onClick={(e) => {
+                setSortedLabel(tick.value);
+                onClickYLabel(tick.value, e);
+              }}
+            >
+              {tick.value}
+            </animated.text>
+          );
+        },
+      }}
+      colors={{
+        type: "sequential",
+        scheme: "plasma",
+
+        minValue: 0,
+        maxValue: 30,
+      }}
+      emptyColor="#FFF"
+      labelTextColor="#FFF"
+      motionConfig={{
+        damping: 9,
+        mass: 0.5,
+      }}
+      tooltip={() => undefined}
+    />
+  );
+};
+
+export default function Home() {
+  return (
+    <main className="absolute w-full h-full left-0 top-0 bg-white">
+      <MyResponsiveHeatMap data={mockData} />
+    </main>
+  );
+}

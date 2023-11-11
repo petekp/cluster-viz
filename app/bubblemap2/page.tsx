@@ -3,64 +3,91 @@
 import * as THREE from "three";
 import { Leva, useControls } from "leva";
 import { SphereGeometry } from "three";
-import { Canvas, invalidate, useThree } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { packSiblings } from "d3-hierarchy";
-import { useEffect, useMemo, useState } from "react";
-import { Html, useDetectGPU } from "@react-three/drei";
+import { useEffect, useState } from "react";
+import { Html } from "@react-three/drei";
 import { useSpring } from "@react-spring/core";
 import { a } from "@react-spring/three";
 
 const CONTROL_SETTINGS = {
-  sphereDistance: { value: 2, min: 0, max: 50, step: 0.01 },
+  sphereDistance: { value: 8, min: 0, max: 50, step: 0.01 },
 };
 
-const COLORS = ["#777"];
+const COLORS = [
+  "#a7351f",
+  "#f2c14e",
+  "#f2f2f2",
+  "#e9a2f9",
+  "#a2f9e9",
+  "#8aa2f3",
+];
 
 const material = {
-  roughness: 1,
-  metalness: 0.3,
+  roughness: 0.1,
+  metalness: 0,
   ior: 0,
-  reflectivity: 1,
-  sheen: 1,
-  iridescence: 1,
-  iridescenceIOR: 1.2,
-  thickness: 1,
+  reflectivity: 0,
+  sheen: 0,
+  iridescence: 0,
+  iridescenceIOR: 0,
+  thickness: 0,
   clearcoat: 1,
-  clearcoatRoughness: 0.38,
-  specularIntensity: 0.3,
+  clearcoatRoughness: 0.4,
+  specularIntensity: 0,
 };
 
 const stubData = {
   totalCustomers: 1000,
   clusters: [
     {
-      name: "Cluster 1",
+      name: "Newly Registered Low-Spenders",
       count: 200,
       description: "This is cluster 1",
     },
     {
-      name: "Cluster 2",
+      name: "Established High-Spend Regulars",
       count: 50,
       description: "This is cluster 2",
     },
     {
-      name: "Cluster 3",
+      name: "Highly Engaged Recent Buyers",
       count: 150,
       description: "This is cluster 3",
     },
     {
-      name: "Cluster 4",
+      name: "Long-Term, High-Education Spenders",
       count: 250,
       description: "This is cluster 4",
     },
     {
-      name: "Cluster 5",
+      name: "Highly Educated Low Spenders",
       count: 100,
       description: "This is cluster 4",
     },
     {
-      name: "Cluster 6",
+      name: "Long-Term Mid-Income Buyers",
       count: 250,
+      description: "This is cluster 4",
+    },
+    {
+      name: "Short-Term Low-Income Buyers",
+      count: 20,
+      description: "This is cluster 4",
+    },
+    {
+      name: "Long-Term High-Income Buyers",
+      count: 120,
+      description: "This is cluster 4",
+    },
+    {
+      name: "Mid-Term Low-Income Buyers",
+      count: 250,
+      description: "This is cluster 4",
+    },
+    {
+      name: "Short-Term Low-Income Buyers",
+      count: 20,
       description: "This is cluster 4",
     },
   ],
@@ -81,11 +108,11 @@ function transformData(data: typeof stubData) {
         (maxDiameter - minDiameter) +
       minDiameter;
 
-    console.log(diameter);
     return {
       name: cluster.name,
       description: cluster.description,
       color: COLORS[i % COLORS.length],
+      count: cluster.count,
       diameter,
       r: diameter / 2 + CONTROL_SETTINGS.sphereDistance.value,
     };
@@ -125,7 +152,7 @@ function calculateSpherePositions(
 
   return {
     spheres: data.map((d, i) => ({
-      position: positions[i],
+      position: positions[i] as [number, number, number],
       diameter: d.diameter,
     })),
     boundingBox,
@@ -135,32 +162,43 @@ function calculateSpherePositions(
 function Sphere({
   position,
   diameter,
+  count,
   color,
   name,
   isFocused,
 }: {
   position: [number, number, number];
   diameter: number;
+  count: number;
   color: string;
   name: string;
-  isFocused: boolean;
+  isFocused?: boolean;
 }) {
   const [isHovered, setIsHovered] = useState(false);
 
   const vectorPosition = new THREE.Vector3(...position);
 
-  const { scale } = useSpring({
+  const { scale, z } = useSpring({
     scale: isHovered || isFocused ? 1.13 : 1,
-    config: { mass: 5, tension: 400, friction: 50, precision: 0.001 },
+    z: isHovered || isFocused ? 5 : 1,
+    intensity: isHovered || isFocused ? 0.3 : 0,
+    config: { mass: 3, tension: 400, friction: 30, precision: 0.001 },
   });
 
-  console.log(scale);
+  const { intensity } = useSpring({
+    intensity: isHovered || isFocused ? 0.4 : 0,
+  });
+
+  const percentage = Math.round((count / stubData.totalCustomers) * 100);
 
   return (
     <>
+      <a.directionalLight position={[0, 10, 10]} intensity={intensity} />
       {/* @ts-ignore */}
       <a.instancedMesh
-        position={vectorPosition}
+        position={z.to((zValue) =>
+          vectorPosition.add(new THREE.Vector3(0, 0, zValue))
+        )}
         scale={scale}
         onPointerOver={() => {
           setIsHovered(true);
@@ -182,20 +220,26 @@ function Sphere({
         <div
           style={{
             display: "flex",
+            flexDirection: "column",
             userSelect: "none",
             alignItems: "center",
             justifyContent: "center",
             minHeight: `${diameter}px`,
-            minWidth: `${diameter}px`,
-            fontSize: `${diameter * 0.1}px`,
+            width: `${diameter - 25}px`,
+            opacity: 0.9,
+            textShadow: "0px 1px 2px 1px rgba(0, 0, 0, 0.6)",
             fontFamily: "system-ui",
             color: "white",
             textAlign: "center",
-            position: "relative",
             transform: "translate(-50%, -50%)",
           }}
         >
-          {name}
+          <div style={{ fontSize: `${diameter * 0.07}px`, fontWeight: 500 }}>
+            {name}
+          </div>
+          <div style={{ fontSize: `${diameter * 0.07}px`, opacity: 0.7 }}>
+            {percentage}%
+          </div>
         </div>
       </Html>
     </>
@@ -221,19 +265,10 @@ function Visualization() {
     boundingBox.getCenter(center);
     const size = boundingBox.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
-    const aspectRatio = size.x / size.y;
-    const viewportAspectRatio = camera.aspect;
 
     let cameraZ = Math.abs(
       maxDim / 4 / Math.tan((camera.fov * (Math.PI / 180)) / 2)
     );
-
-    // Adjust camera position or field of view based on aspect ratios
-    if (aspectRatio > viewportAspectRatio) {
-      cameraZ /= aspectRatio;
-    } else {
-      camera.fov = 2 * Math.atan(maxDim / 4 / cameraZ) * (180 / Math.PI);
-    }
 
     camera.position.z = cameraZ;
     camera.updateProjectionMatrix();
@@ -241,16 +276,18 @@ function Visualization() {
 
   return (
     <>
-      <ambientLight intensity={0} />
-      <directionalLight position={[0, -100, 100]} intensity={1} />
-      <directionalLight position={[-100, 100, -400]} intensity={3} />
-      <directionalLight position={[100, 100, -200]} intensity={3} />
-      <directionalLight position={[0, -100, 100]} intensity={0} />
-      <group position={[0, 0, 0]}>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[0, -100, 100]} intensity={0.5} />
+      <directionalLight position={[-100, 100, -400]} intensity={0.1} />
+      <directionalLight position={[100, 100, -200]} intensity={0.2} />
+      <directionalLight position={[0, -100, 100]} intensity={0.8} />
+      <directionalLight position={[0, 20, 0]} intensity={0.5} />
+      <group>
         {spheres.map((sphere, i) => (
           <Sphere
             key={i}
             position={sphere.position}
+            count={transformedSpheres[i].count}
             diameter={sphere.diameter}
             color={COLORS[i % COLORS.length]}
             name={transformedSpheres[i].name}
@@ -263,7 +300,7 @@ function Visualization() {
 
 export default function Home() {
   return (
-    <main className="absolute w-full h-full left-0 top-0">
+    <main className="absolute w-full h-full left-0 top-0 bg-white">
       <Canvas
         shadows
         className="absolute w-full h-full left-0 top-0"
