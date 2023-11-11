@@ -74,6 +74,7 @@ function calculateSpherePositions(
   };
 }
 
+// @ts-ignore
 function Sphere({ position, diameter, color }) {
   const vectorPosition = new THREE.Vector3(...position);
 
@@ -120,9 +121,11 @@ function Visualization() {
     const size = boundingBox.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
     const aspectRatio = size.x / size.y;
+    // @ts-ignore
     const viewportAspectRatio = camera.aspect;
 
     let cameraZ = Math.abs(
+      // @ts-ignore
       maxDim / 4 / Math.tan((camera.fov * (Math.PI / 180)) / 2)
     );
 
@@ -130,6 +133,7 @@ function Visualization() {
     if (aspectRatio > viewportAspectRatio) {
       cameraZ /= aspectRatio;
     } else {
+      // @ts-ignore
       camera.fov = 2 * Math.atan(maxDim / 4 / cameraZ) * (180 / Math.PI);
     }
 

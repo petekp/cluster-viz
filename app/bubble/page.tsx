@@ -72,21 +72,6 @@ const BubbleShaderMaterial = shaderMaterial(
 
 extend({ BubbleShaderMaterial });
 
-function Boundary({ position, args }) {
-  const { nodes } = useBox(() => ({
-    type: "Static",
-    position,
-    args,
-  }));
-
-  return (
-    <mesh ref={nodes} scale={args}>
-      <boxBufferGeometry attach="geometry" args={[1, 1, 1]} />
-      <meshBasicMaterial attach="material" visible={false} />
-    </mesh>
-  );
-}
-
 function Bubble({
   diameter,
   color,
@@ -152,8 +137,10 @@ function Bubble({
   });
 
   return (
+    // @ts-ignore
     <mesh ref={ref}>
       <sphereGeometry attach="geometry" args={[diameter / 2, 32, 32]} />
+      {/* @ts-ignore */}
       <bubbleShaderMaterial
         attach="material"
         uniforms-uColor-value={new THREE.Color(color)}

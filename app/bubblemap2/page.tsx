@@ -196,6 +196,7 @@ function Sphere({
       <a.directionalLight position={[0, 10, 10]} intensity={intensity} />
       {/* @ts-ignore */}
       <a.instancedMesh
+        // @ts-ignore
         position={z.to((zValue) =>
           vectorPosition.add(new THREE.Vector3(0, 0, zValue))
         )}
@@ -267,6 +268,7 @@ function Visualization() {
     const maxDim = Math.max(size.x, size.y, size.z);
 
     let cameraZ = Math.abs(
+      // @ts-ignore
       maxDim / 4 / Math.tan((camera.fov * (Math.PI / 180)) / 2)
     );
 

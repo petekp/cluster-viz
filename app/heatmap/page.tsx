@@ -10,15 +10,15 @@ const mockData = [
     data: [
       {
         x: "Technology",
-        y: 10,
+        y: 24,
       },
       {
         x: "Sports",
-        y: 15,
+        y: 18,
       },
       {
         x: "Fashion",
-        y: 20,
+        y: 6,
       },
       {
         x: "Books",
@@ -26,7 +26,7 @@ const mockData = [
       },
       {
         x: "Movies",
-        y: 12,
+        y: 14,
       },
       {
         x: "Travel",
@@ -34,10 +34,10 @@ const mockData = [
       },
       {
         x: "Cooking",
-        y: 13,
+        y: 8,
       },
       {
-        x: "Stationary",
+        x: "Arts",
         y: 7,
       },
     ],
@@ -74,7 +74,7 @@ const mockData = [
         y: 10,
       },
       {
-        x: "Stationary",
+        x: "Arts",
         y: 7,
       },
     ],
@@ -84,11 +84,11 @@ const mockData = [
     data: [
       {
         x: "Technology",
-        y: 13,
+        y: 39,
       },
       {
         x: "Sports",
-        y: 17,
+        y: 7,
       },
       {
         x: "Fashion",
@@ -104,15 +104,15 @@ const mockData = [
       },
       {
         x: "Travel",
-        y: 14,
+        y: 9,
       },
       {
         x: "Cooking",
-        y: 10,
+        y: 4,
       },
       {
-        x: "Stationary",
-        y: 8,
+        x: "Arts",
+        y: 2,
       },
     ],
   },
@@ -121,11 +121,11 @@ const mockData = [
     data: [
       {
         x: "Technology",
-        y: 12,
+        y: 26,
       },
       {
         x: "Sports",
-        y: 18,
+        y: 10,
       },
       {
         x: "Fashion",
@@ -133,23 +133,23 @@ const mockData = [
       },
       {
         x: "Books",
-        y: 7,
+        y: 9,
       },
       {
         x: "Movies",
-        y: 10,
+        y: 13,
       },
       {
         x: "Travel",
-        y: 15,
+        y: 9,
       },
       {
         x: "Cooking",
         y: 9,
       },
       {
-        x: "Stationary",
-        y: 9,
+        x: "Arts",
+        y: 4,
       },
     ],
   },
@@ -185,7 +185,7 @@ const mockData = [
         y: 8,
       },
       {
-        x: "Stationary",
+        x: "Arts",
         y: 9,
       },
     ],
@@ -203,7 +203,7 @@ const mockData = [
       },
       {
         x: "Fashion",
-        y: 21,
+        y: 13,
       },
       {
         x: "Books",
@@ -219,11 +219,11 @@ const mockData = [
       },
       {
         x: "Cooking",
-        y: 9,
+        y: 14,
       },
       {
-        x: "Stationary",
-        y: 9,
+        x: "Arts",
+        y: 11,
       },
     ],
   },
@@ -236,11 +236,11 @@ const mockData = [
       },
       {
         x: "Sports",
-        y: 15,
+        y: 45,
       },
       {
         x: "Fashion",
-        y: 20,
+        y: 4,
       },
       {
         x: "Books",
@@ -252,15 +252,15 @@ const mockData = [
       },
       {
         x: "Travel",
-        y: 18,
+        y: 8,
       },
       {
         x: "Cooking",
         y: 8,
       },
       {
-        x: "Stationary",
-        y: 7,
+        x: "Arts",
+        y: 1,
       },
     ],
   },
@@ -269,15 +269,15 @@ const mockData = [
     data: [
       {
         x: "Technology",
-        y: 14,
+        y: 8,
       },
       {
         x: "Sports",
-        y: 11,
+        y: 1,
       },
       {
         x: "Fashion",
-        y: 22,
+        y: 32,
       },
       {
         x: "Books",
@@ -293,10 +293,10 @@ const mockData = [
       },
       {
         x: "Cooking",
-        y: 7,
+        y: 13,
       },
       {
-        x: "Stationary",
+        x: "Arts",
         y: 9,
       },
     ],
