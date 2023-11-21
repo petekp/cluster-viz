@@ -9,11 +9,11 @@ const mockData = [
     id: "Loyal Middle-Income Bachelor",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 24,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 18,
       },
       {
@@ -46,11 +46,11 @@ const mockData = [
     id: "Brand Loyalists with Diverse Interests",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 14,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 11,
       },
       {
@@ -83,11 +83,11 @@ const mockData = [
     id: "Predicted High LTV Affluent Techies",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 39,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 7,
       },
       {
@@ -120,11 +120,11 @@ const mockData = [
     id: "High-Value E-mail Users",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 26,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 10,
       },
       {
@@ -157,11 +157,11 @@ const mockData = [
     id: "Second Purchase Savvy",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 15,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 10,
       },
       {
@@ -194,11 +194,11 @@ const mockData = [
     id: "High-Value Repeat Customer",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 11,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 16,
       },
       {
@@ -231,11 +231,11 @@ const mockData = [
     id: "High-Value Sports Enthusiasts",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 13,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 45,
       },
       {
@@ -268,11 +268,11 @@ const mockData = [
     id: "Mid-Tier Female Shoppers",
     data: [
       {
-        x: "Technology",
+        x: "Count",
         y: 8,
       },
       {
-        x: "Sports",
+        x: "LTV",
         y: 1,
       },
       {
