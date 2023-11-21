@@ -5,109 +5,175 @@ import ParentSize from "@visx/responsive/lib/components/ParentSize";
 
 import { Group } from "@visx/group";
 import { Pack, hierarchy } from "@visx/hierarchy";
-import { scaleQuantize } from "@visx/scale";
-import rawData, {
-  Exoplanets as Datum,
-} from "@visx/mock-data/lib/mocks/exoplanets";
+import { scaleLinear } from "@visx/scale";
+import { animated } from "react-spring";
+import { ScaleLinear } from "d3-scale";
+
+import { ContinuousLens, Segment, generateMockData } from "./mockData";
 
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
 }
 
-const filteredPlanets = [
-  { name: "11 Com c", radius: 12.64, distance: 3.6 },
-  { name: "11 Com b", radius: 10.64, distance: 50.6 },
-  { name: "11 Com b", radius: 8.64, distance: 50.6 },
-  { name: "11 Com b", radius: 8, distance: 50.6 },
-  { name: "11 Com b", radius: 7, distance: 50.6 },
-  { name: "11 Com b", radius: 6.5, distance: 50.6 },
-  { name: "11 Com b", radius: 5.5, distance: 50.6 },
-  { name: "11 Com b", radius: 5.2, distance: 50.6 },
-  { name: "11 Com b", radius: 4.64, distance: 50.6 },
-  { name: "11 Com a", radius: 4.2, distance: 20.6 },
-  { name: "11 Com a", radius: 4.1, distance: 20.6 },
-  { name: "11 Com a", radius: 4, distance: 20.6 },
-  { name: "11 Com a", radius: 3.8, distance: 20.6 },
-  { name: "11 Com a", radius: 3.5, distance: 20.6 },
-  { name: "11 Com a", radius: 3, distance: 20.6 },
-  { name: "11 Com a", radius: 1.8, distance: 20.6 },
-  { name: "11 Com a", radius: 1, distance: 20.6 },
-];
-
-const pack = {
-  children: filteredPlanets,
-  name: "root",
-  radius: 0,
-  distance: 0,
-};
-
-const colorScale = scaleQuantize({
-  domain: extent(rawData, (d) => d.radius),
-  range: ["#ffe108", "#ffc10e", "#fd6d6f", "#855af2", "#11d2f9", "#49f4e7"],
+const newMockData = generateMockData({
+  numSegments: 15,
+  numTotalCustomers: 200000,
 });
 
-const root = hierarchy<Datum>(pack)
-  .sum((d) => d.radius * d.radius)
-  .sort(
-    (a, b) =>
-      // sort by hierarchy, then distance
-      (a?.data ? 1 : -1) - (b?.data ? 1 : -1) ||
-      (a.children ? 1 : -1) - (b.children ? 1 : -1) ||
-      (a.data.distance == null ? -1 : 1) - (b.data.distance == null ? -1 : 1) ||
-      a.data.distance! - b.data.distance!
-  );
+const filteredPlanets = [
+  { name: "11 Com c", radius: 12.64, distance: 1 },
+  { name: "11 Com b", radius: 10.64, distance: 1.6 },
+  { name: "11 Com b", radius: 8.64, distance: 1.6 },
+  { name: "11 Com b", radius: 8, distance: 1.6 },
+  { name: "11 Com b", radius: 7, distance: 1.6 },
+  { name: "11 Com b", radius: 6.5, distance: 1.6 },
+  { name: "11 Com b", radius: 5.5, distance: 1.6 },
+  { name: "11 Com b", radius: 5.2, distance: 1.6 },
+  { name: "11 Com b", radius: 4.64, distance: 1.6 },
+  { name: "11 Com a", radius: 4.2, distance: 2 },
+  { name: "11 Com a", radius: 4.1, distance: 2 },
+  { name: "11 Com a", radius: 4, distance: 2 },
+  { name: "11 Com a", radius: 3.8, distance: 2 },
+  { name: "11 Com a", radius: 3.5, distance: 2 },
+  { name: "11 Com a", radius: 3, distance: 2 },
+  { name: "11 Com a", radius: 1.8, distance: 2 },
+  { name: "11 Com a", radius: 1, distance: 2 },
+];
 
 const defaultMargin = { top: 10, left: 30, right: 40, bottom: 80 };
 
-export type PackProps = {
+export type LandscapeVizProps = {
   width: number;
   height: number;
   margin?: { top: number; right: number; bottom: number; left: number };
+  currentLens: string | undefined;
 };
 
-function Example({ width, height, margin = defaultMargin }: PackProps) {
+function LandscapeViz({
+  width,
+  height,
+  margin = defaultMargin,
+  currentLens,
+}: LandscapeVizProps) {
+  const pack = {
+    id: "",
+    children: newMockData.segments,
+    label: "root",
+    description: "",
+    count: 0,
+  };
+
+  type Datum = Omit<Segment, "children">;
+
+  const root = hierarchy<Datum>(pack)
+    .sum((d) => d.count * d.count)
+    .sort(
+      (a, b) =>
+        // sort by hierarchy, then distance
+        b?.data.count - a?.data.count
+    );
+
+  let colorScale = scaleLinear({
+    domain: extent(newMockData.segments, (d) => d.count),
+    range: ["#222", "#fff"],
+  });
+
+  if (currentLens) {
+    const lens = newMockData.lenses.find(
+      (lens) => lens.label === currentLens && lens.type === "continuous"
+    ) as ContinuousLens;
+
+    if (lens) {
+      const domain = extent(lens.segments, (segment) => segment.mean);
+      colorScale = scaleLinear({
+        domain,
+        range: ["#222", "#fff"],
+      });
+    }
+  }
+
+  console.log(colorScale?.(0));
+
   return width < 10 ? null : (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <animated.svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+    >
       <Pack<Datum> root={root} size={[width, height]}>
         {(packData) => {
           const circles = packData.descendants().slice(1);
+          const lensSegments = newMockData.lenses.find(
+            (lens) => lens.label === currentLens
+          )?.segments;
+
           return (
             <Group>
-              {circles.map((circle, i) => (
-                <circle
-                  key={`circle-${i}`}
-                  r={circle.r}
-                  cx={circle.x}
-                  cy={circle.y}
-                  fill={colorScale(circle.data.radius)}
-                  style={{ position: "relative" }}
-                >
-                  <text
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      fontSize: 20,
-                      color: "white",
-                    }}
-                  >
-                    {circle.value}
-                  </text>
-                </circle>
-              ))}
+              {circles.map((circle, i) => {
+                const segment = lensSegments?.find(
+                  (segment) => segment.id === circle.data.id
+                ) as ContinuousLens["segments"][0];
+
+                return (
+                  <>
+                    <animated.circle
+                      key={`circle-${i}`}
+                      r={circle.r}
+                      cx={circle.x}
+                      cy={circle.y}
+                      fill={segment ? colorScale?.(segment.mean) : "#FFF"}
+                      style={{ position: "relative" }}
+                    />
+                    <text
+                      key={`text-${i}`}
+                      x={circle.x}
+                      y={circle.y}
+                      fontSize={circle.r * 0.2}
+                      fill="black"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                    >
+                      {circle.data.label}
+                    </text>
+                  </>
+                );
+              })}
             </Group>
           );
         }}
       </Pack>
-    </svg>
+    </animated.svg>
   );
 }
 
 export default function Home() {
+  const [currentLens, setCurrentLens] = React.useState<string | undefined>(
+    undefined
+  );
+
   return (
     <main className="absolute w-full h-full left-0 top-0">
+      <select
+        onChange={(e) => setCurrentLens(e.target.value)}
+        style={{ all: "unset" }}
+      >
+        {newMockData.lenses
+          .filter((lens) => lens.type === "continuous")
+          .map((lens) => (
+            <option value={lens.label} key={lens.label}>
+              {lens.label}
+            </option>
+          ))}
+      </select>
+
       <ParentSize>
-        {({ width, height }) => <Example width={width} height={height} />}
+        {({ width, height }) => (
+          <LandscapeViz
+            width={width}
+            height={height}
+            currentLens={currentLens}
+          />
+        )}
       </ParentSize>
     </main>
   );
