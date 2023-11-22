@@ -88,19 +88,10 @@ function LandscapeViz({
       <Pack<Datum> root={root} size={[width, height]}>
         {(packData) => {
           const circles = packData.descendants().slice(1);
-          const lensSegments = newMockData.lenses.find(
-            (lens) => lens.label === currentLens.label
-          )?.segments;
 
           return (
             <Group>
               {circles.map((circle, i) => {
-                const segment = lensSegments?.find(
-                  (segment) => segment.id === circle.data.id
-                ) as ContinuousLens["segments"][0];
-
-                console.log(circle);
-
                 return (
                   <>
                     <animated.circle

@@ -25,8 +25,6 @@ const newMockData = generateMockData({
   numTotalCustomers: 200000,
 });
 
-console.log(newMockData);
-
 const defaultMargin = { top: 10, left: 30, right: 40, bottom: 80 };
 
 export type LandscapeVizProps = {
@@ -40,7 +38,16 @@ function prepareDataForVisualization(
   data: LandscapeVisualization,
   selectedLens: CategoricalLens | ContinuousLens
 ): any {
-  if (selectedLens.type === "categorical") {
+  if (selectedLens.type === "continuous") {
+    // Continuous lens
+    return {
+      id: "",
+      children: data.segments,
+      label: "root",
+      description: "",
+      count: data.segments.reduce((total, segment) => total + segment.count, 0),
+    };
+  } else {
     // Categorical lens
     return {
       id: "root",
@@ -54,15 +61,6 @@ function prepareDataForVisualization(
         };
       }),
     };
-  } else {
-    // Continuous lens
-    return {
-      id: "",
-      children: data.segments,
-      label: "root",
-      description: "",
-      count: data.segments.reduce((total, segment) => total + segment.count, 0),
-    };
   }
 }
 
@@ -73,13 +71,13 @@ function LandscapeViz({
   currentLens,
 }: LandscapeVizProps) {
   type Datum = Segment & { children: any };
+  const isContinuous = currentLens.type === "continuous";
+  const isCategorical = currentLens.type === "categorical";
 
   const preparedData = prepareDataForVisualization(newMockData, currentLens);
 
-  const root = hierarchy<Datum>(preparedData, (d) => d.children)
-    .sum((d) => {
-      return d.count;
-    })
+  const root = hierarchy<Datum>(preparedData)
+    .sum((d) => d.count * d.count)
     .sort((a, b) => b?.data.count - a?.data.count);
 
   let colorScale = scaleLinear({
@@ -101,20 +99,18 @@ function LandscapeViz({
     }
   }
 
-  if (currentLens.type === "continuous") {
+  if (currentLens.type === "categorical") {
     const lens = newMockData.lenses.find(
-      (lens) => lens.label === currentLens.label && lens.type === "categorical"
+      (lens) => lens.label === currentLens.label
     ) as CategoricalLens;
 
-    if (lens) {
-      const [categories] = lens.segments.map((segment) => segment.categories);
-      const domain = extent(categories, (cat) => cat.count);
-
-      colorScale = scaleLinear({
-        domain,
-        range: ["#222", "#fff"],
-      });
-    }
+    const [categories] = lens.segments.map((segment) => segment.categories);
+    const domain = extent(categories, (cat) => cat.count);
+    console.log(domain);
+    colorScale = scaleLinear({
+      domain,
+      range: ["#222", "#eee"],
+    });
   }
 
   return width < 10 ? null : (
@@ -125,7 +121,7 @@ function LandscapeViz({
     >
       <Pack<Datum> root={root} size={[width, height]}>
         {(packData) => {
-          const circles = packData.descendants();
+          const circles = packData.descendants().slice(1);
           const lensSegments = newMockData.lenses.find(
             (lens) => lens.label === currentLens.label
           )!.segments;
@@ -140,34 +136,55 @@ function LandscapeViz({
                   ) as ContinuousLens["segments"][0];
 
                   return (
-                    <animated.circle
-                      key={`circle-${i}`}
-                      r={circle.r}
-                      cx={circle.x}
-                      cy={circle.y}
-                      fill={segment ? colorScale?.(segment.mean) : "#FFF"}
-                    />
+                    <>
+                      <animated.circle
+                        key={`circle-${i}`}
+                        r={circle.r}
+                        cx={circle.x}
+                        cy={circle.y}
+                        fill={segment ? colorScale?.(segment.mean) : "#FFF"}
+                      />
+                      <text
+                        key={`text-${i}`}
+                        x={circle.x}
+                        y={circle.y}
+                        fontSize={circle.r * 0.2}
+                        fill="black"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
+                        {circle.data.label}
+                      </text>
+                    </>
                   );
                 }
 
                 ////////// CATEGORICAL /////////
                 if (currentLens.type === "categorical") {
                   console.log(circle);
-                  return circle?.children?.map((category, j) => {
-                    return (
-                      <>
-                        <animated.circle
-                          key={`circle-${i}-${j}`}
-                          r={category.r}
-                          cx={category.x}
-                          cy={category.y}
-                          fill={colorScale?.(category.count) || "#FFF"}
-                          style={{ position: "relative" }}
-                        />
-                        <text>{category.data.description || ""}</text>
-                      </>
-                    );
-                  });
+                  return (
+                    <>
+                      <animated.circle
+                        key={`circle-${i}`}
+                        r={circle.r}
+                        cx={circle.x}
+                        cy={circle.y}
+                        fill={colorScale(circle.data.count)}
+                        style={{ position: "relative" }}
+                      />
+                      <text
+                        key={`text-${i}`}
+                        x={circle.x}
+                        y={circle.y}
+                        fontSize={circle.r * 0.2}
+                        fill="black"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                      >
+                        {circle.data.label}
+                      </text>
+                    </>
+                  );
                 }
               })}
             </Group>
