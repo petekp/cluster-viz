@@ -7,7 +7,6 @@ import { Group } from "@visx/group";
 import { Pack, hierarchy } from "@visx/hierarchy";
 import { scaleLinear } from "@visx/scale";
 import { animated } from "react-spring";
-import { ScaleLinear } from "d3-scale";
 
 import { ContinuousLens, Segment, generateMockData } from "./mockData";
 
@@ -19,26 +18,6 @@ const newMockData = generateMockData({
   numSegments: 15,
   numTotalCustomers: 200000,
 });
-
-const filteredPlanets = [
-  { name: "11 Com c", radius: 12.64, distance: 1 },
-  { name: "11 Com b", radius: 10.64, distance: 1.6 },
-  { name: "11 Com b", radius: 8.64, distance: 1.6 },
-  { name: "11 Com b", radius: 8, distance: 1.6 },
-  { name: "11 Com b", radius: 7, distance: 1.6 },
-  { name: "11 Com b", radius: 6.5, distance: 1.6 },
-  { name: "11 Com b", radius: 5.5, distance: 1.6 },
-  { name: "11 Com b", radius: 5.2, distance: 1.6 },
-  { name: "11 Com b", radius: 4.64, distance: 1.6 },
-  { name: "11 Com a", radius: 4.2, distance: 2 },
-  { name: "11 Com a", radius: 4.1, distance: 2 },
-  { name: "11 Com a", radius: 4, distance: 2 },
-  { name: "11 Com a", radius: 3.8, distance: 2 },
-  { name: "11 Com a", radius: 3.5, distance: 2 },
-  { name: "11 Com a", radius: 3, distance: 2 },
-  { name: "11 Com a", radius: 1.8, distance: 2 },
-  { name: "11 Com a", radius: 1, distance: 2 },
-];
 
 const defaultMargin = { top: 10, left: 30, right: 40, bottom: 80 };
 
