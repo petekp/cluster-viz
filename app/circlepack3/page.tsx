@@ -25,6 +25,8 @@ const newMockData = generateMockData({
   numTotalCustomers: 200000,
 });
 
+console.log(newMockData);
+
 const defaultMargin = { top: 10, left: 30, right: 40, bottom: 80 };
 
 export type LandscapeVizProps = {
@@ -123,7 +125,7 @@ function LandscapeViz({
     >
       <Pack<Datum> root={root} size={[width, height]}>
         {(packData) => {
-          const circles = packData.descendants().slice(1);
+          const circles = packData.descendants();
           const lensSegments = newMockData.lenses.find(
             (lens) => lens.label === currentLens.label
           )!.segments;
@@ -150,6 +152,7 @@ function LandscapeViz({
 
                 ////////// CATEGORICAL /////////
                 if (currentLens.type === "categorical") {
+                  console.log(circle);
                   return circle?.children?.map((category, j) => {
                     return (
                       <>
@@ -158,7 +161,7 @@ function LandscapeViz({
                           r={category.r}
                           cx={category.x}
                           cy={category.y}
-                          fill={colorScale?.(category.r) || "#FFF"}
+                          fill={colorScale?.(category.count) || "#FFF"}
                           style={{ position: "relative" }}
                         />
                         <text>{category.data.description || ""}</text>
