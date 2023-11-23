@@ -62,38 +62,47 @@ export function generateMockData({
 
   for (let i = 0; i < numSegments; i++) {
     mockSegments.push({
-      id: `${i}`,
-      label: `Mock Segment ${i}`,
-      description: `This is mock segment ${i}`,
+      id: `segment-${i + 1}`,
+      label: `Mock Segment ${i + 1}`,
+      description: `This is mock segment ${i + 1}`,
       count: randomCounts[i],
     });
   }
 
   for (let i = 0; i < 3; i++) {
-    const categoryCount = random(2, 10);
     mockCategoricalLenses.push({
-      label: `Mock Categorical Lens ${i}`,
+      label: `Categorical ${i + 1}`,
       type: "categorical",
-      description: `This is a mock categorical lens ${i}`,
-      segments: mockSegments.map((segment) => ({
-        id: segment.id,
-        categories: Array.from({ length: categoryCount }, (_, j) => ({
-          label: `Category ${j}`,
-          count: random(1000, segment.count),
-        })),
-      })),
+      description: `This is a mock categorical lens ${i + 1}`,
+      segments: mockSegments.map((segment) => {
+        const numCategories = random(2, 15);
+        const categoryCounts = Array.from({ length: numCategories }, () =>
+          random(1, Math.floor(segment.count / numCategories))
+        );
+        const sumOfCategoryCounts = sum(categoryCounts);
+        if (sumOfCategoryCounts < segment.count) {
+          categoryCounts[0] += segment.count - sumOfCategoryCounts;
+        }
+        return {
+          id: segment.id,
+          categories: categoryCounts.map((count, j) => ({
+            label: `Category ${j + 1}`,
+            count,
+          })),
+        };
+      }),
     });
 
     mockContinuousLenses.push({
-      label: `Mock Continuous Lens ${i}`,
+      label: `Continuous ${i + 1}`,
       type: "continuous",
       description: `This is a mock continuous lens ${i}`,
       segments: mockSegments.map((segment) => ({
-        min: 0,
-        max: 100,
+        id: segment.id,
+        min: Math.random() * 10,
+        max: Math.random() * 1000,
         mean: Math.random() * 100,
         median: Math.random() * 100,
-        id: segment.id,
       })),
     });
   }
