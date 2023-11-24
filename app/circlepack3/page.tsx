@@ -6,6 +6,7 @@ import ParentSize from "@visx/responsive/lib/components/ParentSize";
 import { Group } from "@visx/group";
 import { Pack, hierarchy } from "@visx/hierarchy";
 import { scaleQuantile } from "@visx/scale";
+import { LegendQuantile } from "@visx/legend";
 
 import {
   CategoricalLens,
@@ -14,7 +15,8 @@ import {
   Segment,
   generateMockData,
 } from "./mockData";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { useWindowSize } from "usehooks-ts";
 
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
@@ -63,6 +65,16 @@ function prepareCategoricalData(
   };
 }
 
+type Circle = {
+  x: number;
+  y: number;
+  r: number;
+  data: {
+    label: string;
+    id: string;
+  };
+};
+
 function prepareDataForVisualization(
   data: LandscapeVisualization,
   selectedLens: CategoricalLens | ContinuousLens
@@ -82,7 +94,7 @@ function prepareDataForVisualization(
   return preparedData;
 }
 
-const colorRange = ["#6d00a3", "#721d9a", "#5641ff", "#00d4ff", "#00ffc8"];
+const colorRange = ["#00ffc8", "#00d4ff", "#5641ff", "#721d9a", "#6d00a3"];
 
 function LandscapeViz({
   width,
@@ -93,6 +105,7 @@ function LandscapeViz({
   type Datum = Segment & { children: any };
   const isContinuous = currentLens.type === "continuous";
   const isCategorical = currentLens.type === "categorical";
+  const { width: screenWidth, height: screenHeight } = useWindowSize();
 
   const preparedData = React.useMemo(() => {
     return prepareDataForVisualization(newMockData, currentLens);
@@ -126,124 +139,190 @@ function LandscapeViz({
       domain,
       range: colorRange,
     });
-  }, [isContinuous, isCategorical, currentLens.label]);
+  }, [isContinuous, isCategorical]);
 
   return width < 10 ? null : (
-    <motion.svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
+    <>
+      <LegendQuantile
+        scale={colorScale}
+        style={{ position: "absolute", bottom: 0, right: 0 }}
+      />
+      <AnimatePresence>
+        <motion.svg
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+        >
+          <Pack<Datum> root={root} size={[width, height]} padding={8}>
+            {(packData) => {
+              const circles = packData.descendants().slice(1);
+              const lensSegments = newMockData.lenses.find(
+                (lens) => lens.label === currentLens.label
+              )!.segments;
+
+              return (
+                <Group>
+                  {circles.map((circle, i) => {
+                    const segment = lensSegments.find(
+                      (segment) => segment.id === circle.data.id
+                    ) as ContinuousLens["segments"][0];
+
+                    const isCategoryCircle =
+                      circle.data.label.includes("Category");
+
+                    return (
+                      <>
+                        <motion.circle
+                          style={{ position: "relative", zIndex: "0" }}
+                          key={
+                            isCategoryCircle
+                              ? Math.random()
+                              : `circle-${circle.data.label}-${circle.data.id}-${i}`
+                          }
+                          z={isCategoryCircle ? -1 : 0}
+                          r={circle.r}
+                          cx={circle.x}
+                          initial={{
+                            ...(isCategoryCircle
+                              ? { opacity: 0, scale: 0 }
+                              : { opacity: 0, scale: 0.5 }),
+                          }}
+                          exit={{
+                            ...(isCategoryCircle
+                              ? { opacity: 0, scale: 0 }
+                              : { opacity: 0, scale: 0.5 }),
+                          }}
+                          cy={circle.y}
+                          transition={{
+                            type: "spring",
+                            damping: 18,
+                            stiffness: 100,
+                            ...(isCategoryCircle ? { delay: 0.37 } : {}),
+                          }}
+                          animate={{
+                            scale: 1,
+                            opacity: 1,
+                            ...(isCategoryCircle
+                              ? {}
+                              : { cx: circle.x, cy: circle.y }),
+                            r: circle.r,
+                            fill: isContinuous
+                              ? colorScale?.(segment.mean)
+                              : colorScale(circle.data.count),
+                          }}
+                          fill={
+                            isContinuous
+                              ? colorScale?.(segment.mean)
+                              : colorScale(circle.data.count)
+                          }
+                        />
+                        <CircleLabel circle={circle} i={i} />
+                        {isCategorical && !isCategoryCircle && (
+                          <Annotation circle={circle} />
+                        )}
+                      </>
+                    );
+                  })}
+                </Group>
+              );
+            }}
+          </Pack>
+        </motion.svg>
+      </AnimatePresence>
+    </>
+  );
+}
+
+function Annotation({ circle }: { circle: Circle }) {
+  const { width: screenWidth, height: screenHeight } = useWindowSize();
+
+  const fontSize = 12;
+  const labelWidth = circle.data.label.length * (fontSize * 0.7);
+  const labelHeight = fontSize * 2.5;
+  const initialX = circle.x - labelWidth / 2;
+  const initialY = circle.y + (circle.r - labelHeight / 2) / 2;
+
+  const x = circle.x - labelWidth / 2;
+  const y = circle.y - circle.r - labelHeight * 1.2;
+
+  return (
+    <motion.foreignObject
+      initial={{ opacity: 0, x: initialX, y: initialY }}
+      animate={{ opacity: 1, x, y }}
+      exit={{ opacity: 0, x: initialX, y: initialY }}
+      transition={{ type: "spring", damping: 18, stiffness: 100 }}
+      style={{
+        zIndex: 999,
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(0,0,0,0.3)",
+        padding: "6px 0px",
+        borderRadius: "8px",
+        backdropFilter: "blur(10px)",
+        border: "1px solid rgba(255,255,255,0.15)",
+      }}
+      width={labelWidth}
+      height={labelHeight}
     >
-      <Pack<Datum> root={root} size={[width, height]}>
-        {(packData) => {
-          const circles = packData.descendants().slice(1);
-          const lensSegments = newMockData.lenses.find(
-            (lens) => lens.label === currentLens.label
-          )!.segments;
-
-          return (
-            <Group>
-              {circles.map((circle, i) => {
-                const segment = lensSegments.find(
-                  (segment) => segment.id === circle.data.id
-                ) as ContinuousLens["segments"][0];
-
-                console.log(circle);
-
-                const isCategoryCircle = circle.data.label.includes("Category");
-
-                return (
-                  <>
-                    <motion.circle
-                      style={{ position: "relative" }}
-                      key={
-                        isCategoryCircle
-                          ? Math.random()
-                          : `circle-${circle.data.label}-${circle.data.id}-${i}`
-                      }
-                      r={circle.r}
-                      cx={circle.x}
-                      initial={{
-                        ...(isCategoryCircle
-                          ? { opacity: 0, scale: 0 }
-                          : { opacity: 0, scale: 0.9 }),
-                      }}
-                      exit={{
-                        ...(isCategoryCircle
-                          ? { opacity: 0, scale: 0 }
-                          : { opacity: 0, scale: 0.9 }),
-                      }}
-                      cy={circle.y}
-                      transition={{
-                        type: "spring",
-                        damping: 20,
-                        stiffness: 100,
-                        ...(isCategoryCircle ? { delay: 0.6 } : {}),
-                      }}
-                      animate={{
-                        scale: 1,
-                        opacity: 1,
-                        ...(isCategoryCircle
-                          ? {}
-                          : { cx: circle.x, cy: circle.y }),
-                        r: circle.r,
-                        fill: isContinuous
-                          ? colorScale?.(segment.mean)
-                          : colorScale(circle.data.count),
-                      }}
-                      fill={
-                        isContinuous
-                          ? colorScale?.(segment.mean)
-                          : colorScale(circle.data.count)
-                      }
-                    />
-                    <motion.text
-                      key={
-                        circle.data.label.includes("Category")
-                          ? Math.random()
-                          : `text-${circle.data.label}-${circle.data.id}-${i}`
-                      }
-                      initial={{
-                        opacity: 0,
-                        scale: 0,
-                        x: circle.x,
-                        y: circle.y,
-                        fontSize: circle.r * 0.2,
-                      }}
-                      exit={{
-                        opacity: 0,
-                        scale: 0,
-                        transition: { duration: 0.1 },
-                      }}
-                      animate={{
-                        scale: 1,
-                        opacity: 1,
-                        x: circle.x,
-                        y: circle.y,
-                        fontSize: circle.r * 0.2,
-                      }}
-                      transition={{
-                        type: "spring",
-                        damping: 20,
-                        stiffness: 100,
-                        ...(circle.data.label.includes("Category")
-                          ? { delay: 0.6 }
-                          : {}),
-                      }}
-                      fill="black"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                    >
-                      {circle.data.label}
-                    </motion.text>
-                  </>
-                );
-              })}
-            </Group>
-          );
+      <motion.span
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        style={{
+          fontSize,
+          color: "white",
+          textAlign: "center",
         }}
-      </Pack>
-    </motion.svg>
+      >
+        {circle.data.label}
+      </motion.span>
+    </motion.foreignObject>
+  );
+}
+
+function CircleLabel({ circle, i }: { circle: Circle; i: number }) {
+  const isCategoryCircle = circle.data.label.includes("Category");
+
+  return (
+    <motion.text
+      key={
+        isCategoryCircle
+          ? Math.random()
+          : `text-${circle.data.label}-${circle.data.id}`
+      }
+      initial={{
+        opacity: 0,
+        scale: 0,
+        x: circle.x,
+        y: circle.y,
+        fontSize: circle.r * 0.2,
+      }}
+      exit={{
+        opacity: 0,
+        scale: 0,
+        transition: { duration: 0.1 },
+      }}
+      animate={{
+        scale: 1,
+        opacity: 1,
+        x: circle.x,
+        y: circle.y,
+        fontSize: circle.r * 0.2,
+      }}
+      transition={{
+        type: "spring",
+        damping: 20,
+        stiffness: 100,
+        ...(isCategoryCircle ? { delay: 0.6 } : {}),
+      }}
+      fill={"black"}
+      textAnchor="middle"
+      dominantBaseline="middle"
+    >
+      {circle.data.label}
+    </motion.text>
   );
 }
 
