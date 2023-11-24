@@ -151,9 +151,10 @@ function LandscapeViz({
         <motion.svg
           width={width}
           height={height}
+          style={{ position: "relative" }}
           viewBox={`0 0 ${width} ${height}`}
         >
-          <Pack<Datum> root={root} size={[width, height]} padding={8}>
+          <Pack<Datum> root={root} size={[width, height]} padding={10}>
             {(packData) => {
               const circles = packData.descendants().slice(1);
               const lensSegments = newMockData.lenses.find(
@@ -161,69 +162,85 @@ function LandscapeViz({
               )!.segments;
 
               return (
-                <Group>
-                  {circles.map((circle, i) => {
-                    const segment = lensSegments.find(
-                      (segment) => segment.id === circle.data.id
-                    ) as ContinuousLens["segments"][0];
+                <>
+                  <Group style={{ position: "relative" }}>
+                    {circles.map((circle, i) => {
+                      const segment = lensSegments.find(
+                        (segment) => segment.id === circle.data.id
+                      ) as ContinuousLens["segments"][0];
 
-                    const isCategoryCircle =
-                      circle.data.label.includes("Category");
+                      const isCategoryCircle =
+                        circle.data.label.includes("Category");
 
-                    return (
-                      <>
-                        <motion.circle
-                          style={{ position: "relative", zIndex: "0" }}
-                          key={
-                            isCategoryCircle
-                              ? Math.random()
-                              : `circle-${circle.data.label}-${circle.data.id}-${i}`
-                          }
-                          z={isCategoryCircle ? -1 : 0}
-                          r={circle.r}
-                          cx={circle.x}
-                          initial={{
-                            ...(isCategoryCircle
-                              ? { opacity: 0, scale: 0 }
-                              : { opacity: 0, scale: 0.5 }),
-                          }}
-                          exit={{
-                            ...(isCategoryCircle
-                              ? { opacity: 0, scale: 0 }
-                              : { opacity: 0, scale: 0.5 }),
-                          }}
-                          cy={circle.y}
-                          transition={{
-                            type: "spring",
-                            damping: 18,
-                            stiffness: 100,
-                            ...(isCategoryCircle ? { delay: 0.37 } : {}),
-                          }}
-                          animate={{
-                            scale: 1,
-                            opacity: 1,
-                            ...(isCategoryCircle
-                              ? {}
-                              : { cx: circle.x, cy: circle.y }),
-                            r: circle.r,
-                            fill: isContinuous
-                              ? colorScale?.(segment.mean)
-                              : colorScale(circle.data.count),
-                          }}
-                          fill={
-                            isContinuous
-                              ? colorScale?.(segment.mean)
-                              : colorScale(circle.data.count)
-                          }
-                        />
-                        <CircleLabel circle={circle} i={i} />
-                        {isCategorical && !isCategoryCircle && (
-                          <Annotation circle={circle} />
-                        )}
-                      </>
-                    );
-                  })}
-                </Group>
+                      return (
+                        <>
+                          <motion.circle
+                            style={{ position: "relative", zIndex: "-10" }}
+                            key={
+                              isCategoryCircle
+                                ? Math.random()
+                                : `circle-${circle.data.label}-${circle.data.id}-${i}`
+                            }
+                            z={isCategoryCircle ? -1 : 0}
+                            r={circle.r}
+                            cx={circle.x}
+                            initial={{
+                              ...(isCategoryCircle
+                                ? { opacity: 0, scale: 0 }
+                                : { opacity: 0, scale: 0.5 }),
+                            }}
+                            exit={{
+                              ...(isCategoryCircle
+                                ? { opacity: 0, scale: 0 }
+                                : { opacity: 0, scale: 0.5 }),
+                            }}
+                            cy={circle.y}
+                            transition={{
+                              type: "spring",
+                              damping: 18,
+                              stiffness: 100,
+                              ...(isCategoryCircle ? { delay: 0.37 } : {}),
+                            }}
+                            animate={{
+                              scale: 1,
+                              opacity: 1,
+                              ...(isCategoryCircle
+                                ? {}
+                                : { cx: circle.x, cy: circle.y }),
+                              r: circle.r,
+                              fill: isContinuous
+                                ? colorScale?.(segment.mean)
+                                : colorScale(circle.data.count),
+                            }}
+                            fill={
+                              isContinuous
+                                ? colorScale?.(segment.mean)
+                                : colorScale(circle.data.count)
+                            }
+                          />
+                        </>
+                      );
+                    })}
+                  </Group>
+                  <Group>
+                    {circles.map((circle, i) => {
+                      return (
+                        <>
+                          <CircleLabel
+                            circle={circle}
+                            i={i}
+                            lensType={currentLens.type}
+                          />
+
+                          <Annotation
+                            circle={circle}
+                            lensType={currentLens.type}
+                          />
+                        </>
+                      );
+                    })}
+                  </Group>
+                </>
               );
             }}
           </Pack>
@@ -233,22 +250,33 @@ function LandscapeViz({
   );
 }
 
-function Annotation({ circle }: { circle: Circle }) {
+function Annotation({
+  circle,
+  lensType,
+}: {
+  circle: Circle;
+  lensType: "categorical" | "continuous";
+}) {
   const { width: screenWidth, height: screenHeight } = useWindowSize();
+  const isCategoryCircle = circle.data.label.includes("Category");
+
+  const showLabel = isCategoryCircle || lensType !== "categorical";
 
   const fontSize = 12;
   const labelWidth = circle.data.label.length * (fontSize * 0.7);
   const labelHeight = fontSize * 2.5;
+  const opacity = showLabel ? 0 : 1;
   const initialX = circle.x - labelWidth / 2;
   const initialY = circle.y + (circle.r - labelHeight / 2) / 2;
 
   const x = circle.x - labelWidth / 2;
-  const y = circle.y - circle.r - labelHeight * 1.2;
+  const y = showLabel ? circle.y / 1.1 : circle.y - circle.r - labelHeight * 1;
+  const color = showLabel ? "white" : "black";
 
   return (
     <motion.foreignObject
       initial={{ opacity: 0, x: initialX, y: initialY }}
-      animate={{ opacity: 1, x, y }}
+      animate={{ opacity, x, y }}
       exit={{ opacity: 0, x: initialX, y: initialY }}
       transition={{ type: "spring", damping: 18, stiffness: 100 }}
       style={{
@@ -257,22 +285,16 @@ function Annotation({ circle }: { circle: Circle }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "rgba(0,0,0,0.3)",
-        padding: "6px 0px",
-        borderRadius: "8px",
-        backdropFilter: "blur(10px)",
-        border: "1px solid rgba(255,255,255,0.15)",
       }}
       width={labelWidth}
       height={labelHeight}
     >
       <motion.span
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{ opacity: 0, color: "black" }}
+        animate={{ opacity: 1, color: "white" }}
+        exit={{ opacity: 0, color: "black" }}
         style={{
           fontSize,
-          color: "white",
           textAlign: "center",
         }}
       >
@@ -282,34 +304,55 @@ function Annotation({ circle }: { circle: Circle }) {
   );
 }
 
-function CircleLabel({ circle, i }: { circle: Circle; i: number }) {
+function CircleLabel({
+  circle,
+  i,
+  lensType,
+}: {
+  circle: Circle;
+  i: number;
+  lensType: "categorical" | "continuous";
+}) {
   const isCategoryCircle = circle.data.label.includes("Category");
+
+  const isCategoricalLabel = lensType === "categorical" && !isCategoryCircle;
+
+  const initialX = circle.x;
+  const initialY = circle.y;
+  const x = circle.x;
+  const y = isCategoricalLabel ? circle.y / 3 : circle.y;
+  const opacity = isCategoricalLabel ? 0 : 1;
+  const scale = isCategoricalLabel ? 0.6 : 1;
+  const exitX = circle.x;
+  const exitY = circle.y;
 
   return (
     <motion.text
       key={
         isCategoryCircle
           ? Math.random()
-          : `text-${circle.data.label}-${circle.data.id}`
+          : `text-${circle.data.label}-${circle.data.id}-${i}`
       }
       initial={{
         opacity: 0,
         scale: 0,
-        x: circle.x,
-        y: circle.y,
+        x: initialX,
+        y: initialY,
+        fontSize: circle.r * 0.2,
+      }}
+      animate={{
+        scale,
+        opacity,
+        x,
+        y,
         fontSize: circle.r * 0.2,
       }}
       exit={{
         opacity: 0,
         scale: 0,
+        x: exitX,
+        y: exitY,
         transition: { duration: 0.1 },
-      }}
-      animate={{
-        scale: 1,
-        opacity: 1,
-        x: circle.x,
-        y: circle.y,
-        fontSize: circle.r * 0.2,
       }}
       transition={{
         type: "spring",
