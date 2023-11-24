@@ -51,7 +51,7 @@ export function generateMockData({
   const mockContinuousLenses: ContinuousLens[] = [];
 
   let randomCounts = Array.from({ length: numSegments }, () =>
-    random(1000, numTotalCustomers)
+    random(1000, numTotalCustomers, false)
   );
 
   const sumOfCounts = sum(randomCounts);
@@ -75,9 +75,9 @@ export function generateMockData({
       type: "categorical",
       description: `This is a mock categorical lens ${i + 1}`,
       segments: mockSegments.map((segment) => {
-        const numCategories = random(2, 15);
+        const numCategories = random(2, 15, false);
         const categoryCounts = Array.from({ length: numCategories }, () =>
-          random(1, Math.floor(segment.count / numCategories))
+          random(1, Math.floor(segment.count / numCategories), false)
         );
         const sumOfCategoryCounts = sum(categoryCounts);
         if (sumOfCategoryCounts < segment.count) {
@@ -99,10 +99,10 @@ export function generateMockData({
       description: `This is a mock continuous lens ${i}`,
       segments: mockSegments.map((segment) => ({
         id: segment.id,
-        min: Math.random() * 10,
-        max: Math.random() * 1000,
-        mean: Math.random() * 100,
-        median: Math.random() * 100,
+        min: random(0, 100, false),
+        max: random(0, 4000, false),
+        mean: random(0, 3000, false),
+        median: random(0, 100, false),
       })),
     });
   }

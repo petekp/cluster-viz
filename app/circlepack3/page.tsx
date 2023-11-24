@@ -379,29 +379,32 @@ export default function Home() {
     newMockData.lenses[0];
 
   return (
-    <main className="absolute w-full h-full left-0 top-0">
-      {newMockData.lenses.map((lens) => (
-        <button
-          key={lens.label}
-          value={lens.label}
-          className={`${
-            currentLens === lens.label ? "border-pink-500" : ""
-          } mr-4 border border-gray-800 p-2`}
-          onClick={() => setCurrentLens(lens.label)}
-        >
-          {lens.label}
-        </button>
-      ))}
-
-      <ParentSize>
-        {({ width, height }) => (
-          <LandscapeViz
-            width={width}
-            height={height}
-            currentLens={currentLensData}
-          />
-        )}
-      </ParentSize>
+    <main className="w-full h-full flex">
+      <div className="flex flex-col  flex-shrink-0 p-4">
+        {newMockData.lenses.map((lens) => (
+          <button
+            key={lens.label}
+            value={lens.label}
+            className={`${
+              currentLens === lens.label ? "border-pink-500" : ""
+            } border border-gray-800 p-2`}
+            onClick={() => setCurrentLens(lens.label)}
+          >
+            {lens.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-1 ">
+        <ParentSize>
+          {({ width, height }) => (
+            <LandscapeViz
+              width={width}
+              height={height}
+              currentLens={currentLensData}
+            />
+          )}
+        </ParentSize>
+      </div>
     </main>
   );
 }
