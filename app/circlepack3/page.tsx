@@ -7,6 +7,7 @@ import { Group } from "@visx/group";
 import { Pack, hierarchy } from "@visx/hierarchy";
 import { scaleQuantile } from "@visx/scale";
 import { LegendQuantile } from "@visx/legend";
+import { localPoint } from "@visx/event";
 
 import {
   CategoricalLens,
@@ -16,7 +17,7 @@ import {
   generateMockData,
 } from "./mockData";
 import { AnimatePresence, motion } from "framer-motion";
-import { useWindowSize } from "usehooks-ts";
+import { useTooltip, useTooltipInPortal } from "@visx/tooltip";
 
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
@@ -34,6 +35,8 @@ export type LandscapeVizProps = {
   height: number;
   margin?: { top: number; right: number; bottom: number; left: number };
   currentLens: CategoricalLens | ContinuousLens;
+  showTooltip: (event: any) => void;
+  hideTooltip: () => void;
 };
 
 function prepareContinuousData(data: LandscapeVisualization): any {
@@ -101,11 +104,12 @@ function LandscapeViz({
   height,
   margin = defaultMargin,
   currentLens,
+  showTooltip,
+  hideTooltip,
 }: LandscapeVizProps) {
   type Datum = Segment & { children: any };
   const isContinuous = currentLens.type === "continuous";
   const isCategorical = currentLens.type === "categorical";
-  const { width: screenWidth, height: screenHeight } = useWindowSize();
 
   const preparedData = React.useMemo(() => {
     return prepareDataForVisualization(newMockData, currentLens);
@@ -145,25 +149,48 @@ function LandscapeViz({
     <>
       <LegendQuantile
         scale={colorScale}
-        style={{ position: "absolute", bottom: 0, right: 0 }}
+        className="p-3 rounded-md bg-black bg-opacity-50 backdrop-blur-md"
+        style={{
+          position: "absolute",
+          bottom: 12,
+          right: 12,
+          zIndex: 999,
+        }}
+        labelTransform={({ scale, labelFormat }) =>
+          (d, i) => {
+            const [x0, x1] = scale.invertExtent(scale(d));
+            const formattedX0 = labelFormat(
+              Math.floor(x0),
+              i
+            )?.toLocaleString();
+            const formattedX1 = labelFormat(
+              Math.floor(x1),
+              i
+            )?.toLocaleString();
+            return {
+              datum: d,
+              index: i,
+              text: `${formattedX0} – ${formattedX1}`,
+              value: scale(d),
+            };
+          }}
       />
-      <AnimatePresence>
-        <motion.svg
-          width={width}
-          height={height}
-          style={{ position: "relative" }}
-          viewBox={`0 0 ${width} ${height}`}
-        >
-          <Pack<Datum> root={root} size={[width, height]} padding={10}>
-            {(packData) => {
-              const circles = packData.descendants().slice(1);
-              const lensSegments = newMockData.lenses.find(
-                (lens) => lens.label === currentLens.label
-              )!.segments;
 
-              return (
-                <>
-                  <Group style={{ position: "relative" }}>
+      <motion.svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
+        <Pack<Datum> root={root} size={[width, height]} padding={10}>
+          {(packData) => {
+            const circles = packData.descendants().slice(1);
+            const lensSegments = newMockData.lenses.find(
+              (lens) => lens.label === currentLens.label
+            )!.segments;
+
+            return (
+              <>
+                <Group
+                  style={{ position: "relative" }}
+                  transform={`translate(${0}, ${0})`}
+                >
+                  <AnimatePresence>
                     {circles.map((circle, i) => {
                       const segment = lensSegments.find(
                         (segment) => segment.id === circle.data.id
@@ -172,29 +199,40 @@ function LandscapeViz({
                       const isCategoryCircle =
                         circle.data.label.includes("Category");
 
+                      const fill = isContinuous
+                        ? colorScale?.(segment.mean)
+                        : colorScale(circle.data.count);
+
                       return (
                         <>
                           <motion.circle
-                            style={{ position: "relative", zIndex: "-10" }}
+                            onMouseOver={(event: any, datum: any) => {
+                              const eventSvgCoords = localPoint(event);
+
+                              showTooltip({
+                                tooltipData: circle.data,
+                                tooltipTop: eventSvgCoords?.y,
+                                tooltipLeft: circle.x,
+                              });
+                            }}
+                            onMouseOut={hideTooltip}
                             key={
                               isCategoryCircle
                                 ? Math.random()
                                 : `circle-${circle.data.label}-${circle.data.id}-${i}`
                             }
-                            z={isCategoryCircle ? -1 : 0}
                             r={circle.r}
                             cx={circle.x}
                             initial={{
+                              fill,
                               ...(isCategoryCircle
                                 ? { opacity: 0, scale: 0 }
                                 : { opacity: 0, scale: 0.5 }),
                             }}
-                            exit={{
-                              ...(isCategoryCircle
-                                ? { opacity: 0, scale: 0 }
-                                : { opacity: 0, scale: 0.5 }),
-                            }}
+                            exit={{ opacity: 0, scale: 0, fill: "red" }}
                             cy={circle.y}
+                            strokeWidth={0.2}
+                            stroke={isCategoryCircle ? "white" : "none"}
                             transition={{
                               type: "spring",
                               damping: 18,
@@ -204,170 +242,122 @@ function LandscapeViz({
                             animate={{
                               scale: 1,
                               opacity: 1,
-                              ...(isCategoryCircle
-                                ? {}
-                                : { cx: circle.x, cy: circle.y }),
+                              ...(!isCategoryCircle
+                                ? { cx: circle.x, cy: circle.y }
+                                : {}),
                               r: circle.r,
-                              fill: isContinuous
-                                ? colorScale?.(segment.mean)
-                                : colorScale(circle.data.count),
+                              fill: fill,
                             }}
-                            fill={
-                              isContinuous
-                                ? colorScale?.(segment.mean)
-                                : colorScale(circle.data.count)
-                            }
+                            fill={fill}
                           />
                         </>
                       );
                     })}
-                  </Group>
-                  <Group>
-                    {circles.map((circle, i) => {
-                      return (
-                        <>
-                          <CircleLabel
-                            circle={circle}
-                            i={i}
-                            lensType={currentLens.type}
-                          />
-
-                          <Annotation
-                            circle={circle}
-                            lensType={currentLens.type}
-                          />
-                        </>
-                      );
-                    })}
-                  </Group>
-                </>
-              );
-            }}
-          </Pack>
-        </motion.svg>
-      </AnimatePresence>
+                  </AnimatePresence>
+                </Group>
+                <Group transform={`translate(${0}, ${0})`}>
+                  {circles.map((circle, i) => {
+                    return (
+                      <CircleLabel
+                        circle={circle}
+                        i={i}
+                        lensType={currentLens.type}
+                      />
+                    );
+                  })}
+                </Group>
+              </>
+            );
+          }}
+        </Pack>
+      </motion.svg>
     </>
   );
 }
 
-function Annotation({
-  circle,
-  lensType,
-}: {
-  circle: Circle;
-  lensType: "categorical" | "continuous";
-}) {
-  const { width: screenWidth, height: screenHeight } = useWindowSize();
-  const isCategoryCircle = circle.data.label.includes("Category");
+const CircleLabel = React.memo(
+  function CircleLabel({
+    circle,
+    i,
+    lensType,
+  }: {
+    circle: Circle;
+    i: number;
+    lensType: "categorical" | "continuous";
+  }) {
+    const isCategoryCircle = circle.data.label.includes("Category");
+    const isCategoricalLabel = lensType === "categorical" && !isCategoryCircle;
+    const initialX = circle.x;
+    const initialY = circle.y;
+    const targetX = circle.x;
+    const aboveCirclePos = circle.y - circle.r - 12;
+    const targetY = isCategoricalLabel ? aboveCirclePos : circle.y;
+    const opacity = 1;
+    const scale = isCategoricalLabel ? 0.6 : 1;
+    const exitX = circle.x;
+    const exitY = circle.y;
+    const maxFontSize = 20;
+    const fontSize = Math.min(circle.r * 0.2, maxFontSize);
 
-  const showLabel = isCategoryCircle || lensType !== "categorical";
-
-  const fontSize = 12;
-  const labelWidth = circle.data.label.length * (fontSize * 0.7);
-  const labelHeight = fontSize * 2.5;
-  const opacity = showLabel ? 0 : 1;
-  const initialX = circle.x - labelWidth / 2;
-  const initialY = circle.y + (circle.r - labelHeight / 2) / 2;
-
-  const x = circle.x - labelWidth / 2;
-  const y = showLabel ? circle.y / 1.1 : circle.y - circle.r - labelHeight * 1;
-  const color = showLabel ? "white" : "black";
-
-  return (
-    <motion.foreignObject
-      initial={{ opacity: 0, x: initialX, y: initialY }}
-      animate={{ opacity, x, y }}
-      exit={{ opacity: 0, x: initialX, y: initialY }}
-      transition={{ type: "spring", damping: 18, stiffness: 100 }}
-      style={{
-        zIndex: 999,
-        position: "relative",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-      width={labelWidth}
-      height={labelHeight}
-    >
-      <motion.span
-        initial={{ opacity: 0, color: "black" }}
-        animate={{ opacity: 1, color: "white" }}
-        exit={{ opacity: 0, color: "black" }}
-        style={{
-          fontSize,
-          textAlign: "center",
-        }}
-      >
-        {circle.data.label}
-      </motion.span>
-    </motion.foreignObject>
-  );
-}
-
-function CircleLabel({
-  circle,
-  i,
-  lensType,
-}: {
-  circle: Circle;
-  i: number;
-  lensType: "categorical" | "continuous";
-}) {
-  const isCategoryCircle = circle.data.label.includes("Category");
-
-  const isCategoricalLabel = lensType === "categorical" && !isCategoryCircle;
-
-  const initialX = circle.x;
-  const initialY = circle.y;
-  const x = circle.x;
-  const y = isCategoricalLabel ? circle.y / 3 : circle.y;
-  const opacity = isCategoricalLabel ? 0 : 1;
-  const scale = isCategoricalLabel ? 0.6 : 1;
-  const exitX = circle.x;
-  const exitY = circle.y;
-
-  return (
-    <motion.text
-      key={
-        isCategoryCircle
-          ? Math.random()
-          : `text-${circle.data.label}-${circle.data.id}-${i}`
-      }
-      initial={{
-        opacity: 0,
-        scale: 0,
-        x: initialX,
-        y: initialY,
-        fontSize: circle.r * 0.2,
-      }}
-      animate={{
-        scale,
-        opacity,
-        x,
-        y,
-        fontSize: circle.r * 0.2,
-      }}
-      exit={{
-        opacity: 0,
-        scale: 0,
-        x: exitX,
-        y: exitY,
-        transition: { duration: 0.1 },
-      }}
-      transition={{
-        type: "spring",
-        damping: 20,
-        stiffness: 100,
-        ...(isCategoryCircle ? { delay: 0.6 } : {}),
-      }}
-      fill={"black"}
-      textAnchor="middle"
-      dominantBaseline="middle"
-    >
-      {circle.data.label}
-    </motion.text>
-  );
-}
+    return (
+      <>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow
+            dx="0"
+            dy="2"
+            stdDeviation="4"
+            floodColor="black"
+            floodOpacity="0.5"
+          />
+        </filter>
+        <motion.text
+          className="select-none pointer-events-none"
+          key={
+            isCategoryCircle
+              ? Math.random()
+              : `text-label-${circle.data.label}-${circle.data.id}-${i}`
+          }
+          initial={{
+            opacity: 0,
+            scale: 0,
+            x: initialX,
+            y: initialY,
+            fontSize,
+          }}
+          animate={{
+            scale,
+            opacity,
+            color: "white",
+            x: targetX,
+            y: targetY,
+            fontSize,
+          }}
+          exit={{
+            opacity: 0,
+            scale: 1,
+            x: exitX,
+            y: exitY,
+          }}
+          color="white"
+          transition={{
+            type: "spring",
+            damping: 20,
+            stiffness: 100,
+            ...(isCategoryCircle ? { delay: 0.6 } : {}),
+          }}
+          fill="white"
+          textAnchor="middle"
+          dominantBaseline="middle"
+        >
+          {circle.data.label}
+        </motion.text>
+      </>
+    );
+  },
+  (prevProps, nextProps) => {
+    return false;
+  }
+);
 
 export default function Home() {
   const [currentLens, setCurrentLens] = React.useState<string | undefined>(
@@ -377,6 +367,24 @@ export default function Home() {
   const currentLensData =
     newMockData.lenses.find((lens) => lens.label === currentLens) ||
     newMockData.lenses[0];
+
+  const {
+    tooltipData,
+    tooltipLeft,
+    tooltipTop,
+    tooltipOpen,
+    showTooltip,
+    hideTooltip,
+  } = useTooltip();
+
+  // If you don't want to use a Portal, simply replace `TooltipInPortal` below with
+  // `Tooltip` or `TooltipWithBounds` and remove `containerRef`
+  const { containerRef, TooltipInPortal } = useTooltipInPortal({
+    // use TooltipWithBounds
+    detectBounds: true,
+    // when tooltip containers are scrolled, this will correctly update the Tooltip position
+    scroll: true,
+  });
 
   return (
     <main className="w-full h-full flex">
@@ -395,15 +403,32 @@ export default function Home() {
         ))}
       </div>
       <div className="flex flex-1 ">
-        <ParentSize>
-          {({ width, height }) => (
-            <LandscapeViz
-              width={width}
-              height={height}
-              currentLens={currentLensData}
-            />
+        <>
+          <ParentSize>
+            {({ width, height }) => (
+              <LandscapeViz
+                width={width}
+                height={height}
+                currentLens={currentLensData}
+                showTooltip={showTooltip}
+                hideTooltip={hideTooltip}
+              />
+            )}
+          </ParentSize>
+          {tooltipOpen && (
+            <TooltipInPortal
+              top={tooltipTop}
+              left={tooltipLeft}
+              className="p-2"
+            >
+              <div className="mb-1">
+                <strong>{tooltipData?.label}</strong>
+              </div>
+              <div>Data will go here</div>
+              <div></div>
+            </TooltipInPortal>
           )}
-        </ParentSize>
+        </>
       </div>
     </main>
   );
