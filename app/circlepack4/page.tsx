@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 import { Group } from "@visx/group";
 import { Pack, hierarchy } from "@visx/hierarchy";
-import { scaleQuantile } from "@visx/scale";
+import { scaleQuantile, scaleSqrt } from "@visx/scale";
 import { LegendQuantile } from "@visx/legend";
 import { colord } from "colord";
 
@@ -25,8 +25,6 @@ import { debounce } from "lodash";
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
 }
-
-const colorRange = ["#3900DC", "#842AF6", "#BD0DC1", "#00D4FF", "#00FFC8"];
 const colorRange2 = ["#3900DC", "#6D29FF", "#AB00FC", "#E40089", "#FFB763"];
 
 const transitionConfig = {
@@ -45,14 +43,59 @@ export type LandscapeVizProps = {
   selectedCategory: string | null;
 };
 
-function prepareContinuousData(data: LandscapeVisualization): any {
-  return {
-    id: "",
-    children: data.segments,
-    label: "root",
-    description: "",
-    count: 0,
-  };
+function prepareLensData(
+  data: LandscapeVisualization,
+  currentLens: CategoricalLens | ContinuousLens,
+  selectedCategory?: string
+): any {
+  if (currentLens.type === "categorical" && selectedCategory) {
+    // Find the maximum count for the selected category across all segments
+    const maxCount = Math.max(
+      ...currentLens.segments.map(
+        (segment) =>
+          segment.categories.find((c) => c.label === selectedCategory)?.count ||
+          0
+      )
+    );
+
+    return {
+      id: "root",
+      children: data.segments.map((segment) => {
+        const matchingSegment = currentLens.segments.find(
+          (s) => s.id === segment.id
+        );
+        const matchingCategory = matchingSegment?.categories.find(
+          (c) => c.label === selectedCategory
+        );
+        // Scale the count for the selected category based on the maximum count
+        const value = matchingCategory
+          ? (matchingCategory.count / maxCount) * segment.count
+          : 0;
+        return {
+          ...segment,
+          value,
+        };
+      }),
+    };
+  }
+
+  if (currentLens.type === "continuous") {
+    return {
+      id: "",
+      children: data.segments.map((segment) => {
+        const matchingSegment = currentLens.segments.find(
+          (s) => s.id === segment.id
+        );
+        return {
+          ...segment,
+          value: matchingSegment ? matchingSegment.mean : 0,
+        };
+      }),
+      label: "root",
+      description: "",
+      count: 0,
+    };
+  }
 }
 
 function transformlabel({
@@ -72,28 +115,6 @@ function transformlabel({
       text: `${formattedX0} – ${formattedX1}`,
       value: scale(d),
     };
-  };
-}
-
-function prepareCategoricalData(
-  data: LandscapeVisualization,
-  selectedLens: CategoricalLens,
-  selectedCategory?: string
-): any {
-  return {
-    id: "root",
-    children: data.segments.map((segment) => {
-      const matchingSegment = selectedLens.segments.find(
-        (s) => s.id === segment.id
-      );
-      const matchingCategory = matchingSegment?.categories.find(
-        (c) => c.label === selectedCategory
-      );
-      return {
-        ...segment,
-        count: matchingCategory ? matchingCategory.count : 0,
-      };
-    }),
   };
 }
 
@@ -117,14 +138,9 @@ function LandscapeViz({
   type Datum = Segment & { children: any };
   const isContinuous = currentLens.type === "continuous";
   const isCategorical = currentLens.type === "categorical";
-  console.log(data.lenses);
 
   const preparedData = React.useMemo(() => {
-    if (currentLens.type === "categorical" && selectedCategory) {
-      return prepareCategoricalData(data, currentLens, selectedCategory);
-    } else {
-      return prepareContinuousData(data);
-    }
+    return prepareLensData(data, currentLens, selectedCategory);
   }, [data, currentLens, selectedCategory]);
 
   const root = React.useMemo(() => {
@@ -146,19 +162,14 @@ function LandscapeViz({
     }
 
     if (isCategorical) {
-      const { segments } = data.lenses.find(
-        (lens) => lens.label === currentLens.label
-      ) as CategoricalLens;
-      const [categories] = segments.map((s) => s.categories);
-      domain = extent(categories, (cat) => cat.count);
-      console.log(domain);
+      domain = extent(preparedData.children, (segment) => segment.value);
     }
 
     return scaleQuantile({
       domain,
       range: colorRange2,
     });
-  }, [isContinuous, isCategorical]);
+  }, [isContinuous, isCategorical, preparedData]);
 
   return width < 10 ? null : (
     <>
@@ -211,8 +222,17 @@ function LandscapeViz({
                       innerCircleRadius =
                         (segment.mean / segment.max) * circle.r;
                     } else {
-                      innerCircleRadius =
-                        (circle.data.count / circle.parent.value) * circle.r;
+                      // Use a square root scale for the inner circle radius
+                      const sqrtScale = scaleSqrt({
+                        domain: [
+                          0,
+                          Math.max(
+                            ...preparedData.children.map((d) => d.value)
+                          ),
+                        ],
+                        range: [0, circle.r],
+                      });
+                      innerCircleRadius = sqrtScale(circle.data.value);
                     }
 
                     return (
@@ -298,7 +318,7 @@ function LandscapeViz({
           <feMorphology
             in="SourceGraphic"
             operator="dilate"
-            radius="2"
+            radius="1"
             result="dilated"
           />
           <feComposite in="SourceGraphic" in2="dilated" operator="xor" />
@@ -407,7 +427,7 @@ export default function Home() {
             id="numSegments"
             name="numSegments"
             min="1"
-            max="200"
+            max="100"
             value={numSegments}
             onChange={(e) => debouncedSetNumSegments(Number(e.target.value))}
           />
@@ -429,6 +449,8 @@ export default function Home() {
               <CategoricalLensComponent
                 key={`categorical-${lens.label}-${i}`}
                 lens={lens}
+                selectedLens={currentLens}
+                selectedCategory={selectedCategory}
                 onSelect={handleLensSelection}
               />
             );
@@ -456,36 +478,38 @@ export default function Home() {
 
 function CategoricalLensComponent({
   lens,
+  selectedCategory,
+  selectedLens,
   onSelect,
 }: {
   lens: CategoricalLens;
+  selectedCategory: string | null;
+  selectedLens: string | undefined;
   onSelect: (selectedLens: string, selectedCategory: string | null) => void;
 }) {
-  const [selectedOption, setSelectedOption] = React.useState(lens.label);
-
   const categories = lens.segments[0].categories;
+  const isCurrentLens = selectedLens === lens.label;
 
   return (
-    <select
-      onChange={(e) => {
-        setSelectedOption(e.target.value);
-        onSelect(lens.label, e.target.value);
-      }}
-      className="text-black"
-      value={selectedOption}
-    >
-      <option disabled value={lens.label}>
-        {lens.label}
-      </option>
+    <div className="text-black flex flex-col">
+      <div className="text-gray-500 mb-1 mt-2">{lens.label}</div>
       {categories.map((category, i) => (
-        <option
+        <button
+          className={`${
+            selectedCategory === category.label && isCurrentLens
+              ? "border-pink-500"
+              : ""
+          } border border-gray-800 p-0 text-white ml-2 text-sm`}
           key={`${lens.label} - ${category.label} - ${i}`}
           value={`${category.label}`}
+          onClick={(e) => {
+            onSelect(lens.label, category.label);
+          }}
         >
           {category.label}
-        </option>
+        </button>
       ))}
-    </select>
+    </div>
   );
 }
 

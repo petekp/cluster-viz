@@ -72,14 +72,14 @@ export function generateMockData({
   for (let i = 0; i < numSegments; i++) {
     mockSegments.push({
       id: `segment-${i + 1}`,
-      label: `Mock Segment ${i + 1}`,
+      label: `Segment ${i + 1}`,
       description: `This is mock segment ${i + 1}`,
       count: randomCounts[i],
     });
   }
 
   for (let i = 0; i < 3; i++) {
-    const numCategories = random(1, 10, false);
+    const numCategories = random(1, 5, false);
 
     mockCategoricalLenses.push({
       label: `Categorical ${i + 1}`,
