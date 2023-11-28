@@ -24,17 +24,12 @@ function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
 }
 
-const newMockData = generateMockData({
-  numSegments: 10,
-  numTotalCustomers: 200000,
-});
-
-const colorRange = ["#00ffc8", "#00d4ff", "#5641ff", "#721d9a", "#6d00a3"];
-const defaultMargin = { top: 10, left: 30, right: 40, bottom: 80 };
+const colorRange = ["#6d00a3", "#721d9a", "#5641ff", "#00d4ff", "#00ffc8"];
 
 export type LandscapeVizProps = {
   width: number;
   height: number;
+  data: LandscapeVisualization;
   margin?: { top: number; right: number; bottom: number; left: number };
   currentLens: CategoricalLens | ContinuousLens;
   selectedCategory: string | null;
@@ -105,40 +100,43 @@ type Circle = {
 function LandscapeViz({
   width,
   height,
-  margin = defaultMargin,
   currentLens,
   selectedCategory,
+  data,
 }: LandscapeVizProps) {
+  if (!data) return null;
   type Datum = Segment & { children: any };
   const isContinuous = currentLens.type === "continuous";
   const isCategorical = currentLens.type === "categorical";
 
   const preparedData = React.useMemo(() => {
     if (currentLens.type === "categorical" && selectedCategory) {
-      return prepareCategoricalData(newMockData, currentLens, selectedCategory);
+      return prepareCategoricalData(data, currentLens, selectedCategory);
     } else {
-      return prepareContinuousData(newMockData);
+      return prepareContinuousData(data);
     }
-  }, [newMockData, currentLens, selectedCategory]);
+  }, [data, currentLens, selectedCategory]);
 
   const root = React.useMemo(() => {
     return hierarchy<Datum>(preparedData)
       .sum((d) => d.count)
-      .sort((a, b) => b.data.count - a.data.count);
+      .sort((a, b) => {
+        return b.data.count - a.data.count;
+      });
   }, [preparedData, selectedCategory, currentLens]);
 
   const colorScale = React.useMemo(() => {
     let domain: [number, number] = [0, 0];
 
     if (isContinuous) {
-      const { segments } = newMockData.lenses.find(
+      const { segments } = data.lenses.find(
         (lens) => lens.label === currentLens.label
       ) as ContinuousLens;
       domain = extent(segments, (s) => s.mean);
     }
 
     if (isCategorical) {
-      const { segments } = newMockData.lenses.find(
+      const { segments } = data.lenses.find(
         (lens) => lens.label === currentLens.label
       ) as CategoricalLens;
       const [categories] = segments.map((s) => s.categories);
@@ -169,7 +167,7 @@ function LandscapeViz({
         <Pack<Datum> root={root} size={[width, height]} padding={10}>
           {(packData) => {
             const circles = packData.descendants().slice(1);
-            const lensSegments = newMockData.lenses.find(
+            const lensSegments = data.lenses.find(
               (lens) => lens.label === currentLens.label
             )!.segments;
 
@@ -250,14 +248,10 @@ const CircleLabel = function CircleLabel({
   i: number;
   lensType: "categorical" | "continuous";
 }) {
-  const isCategoryCircle = circle.data.label.includes("Category");
-  const isCategoricalLabel = lensType === "categorical" && !isCategoryCircle;
   const initialX = circle.x;
   const initialY = circle.y;
   const targetX = circle.x;
   const targetY = circle.y;
-  const opacity = 1;
-  const scale = 1;
   const exitX = circle.x;
   const exitY = circle.y;
   const maxFontSize = 20;
@@ -285,8 +279,8 @@ const CircleLabel = function CircleLabel({
           fontSize,
         }}
         animate={{
-          scale,
-          opacity,
+          opacity: 1,
+          scale: 1,
           color: "white",
           x: targetX,
           y: targetY,
@@ -315,6 +309,7 @@ const CircleLabel = function CircleLabel({
 };
 
 export default function Home() {
+  const [data, setData] = React.useState<LandscapeVisualization | null>(null);
   const [currentLens, setCurrentLens] = React.useState<string | undefined>(
     "Categorical 1"
   );
@@ -322,22 +317,39 @@ export default function Home() {
     null
   );
 
-  console.log({ selectedCategory });
+  React.useEffect(() => {
+    const mockData = generateMockData({
+      numSegments: 80,
+      numTotalCustomers: 1000000,
+    });
+    setData(mockData);
+  }, []);
+
+  if (!data) {
+    return null; // or a loading spinner
+  }
+
+  const handleLensSelection = (
+    selectedLens: string,
+    selectedCategory: string | null
+  ) => {
+    setCurrentLens(selectedLens);
+    setSelectedCategory(selectedCategory);
+  };
 
   const currentLensData =
-    newMockData.lenses.find((lens) => lens.label === currentLens) ||
-    newMockData.lenses[0];
+    data.lenses.find((lens) => lens.label === currentLens) || data.lenses[0];
 
   return (
     <main className="w-full h-full flex">
       <div className="flex flex-col  flex-shrink-0 p-4">
-        {newMockData.lenses.map((lens, i) => {
+        {data.lenses.map((lens, i) => {
           if (lens.type === "categorical") {
             return (
               <CategoricalLensComponent
-                key={`${lens.label}-${i}`}
+                key={`categorical-${lens.label}-${i}`}
                 lens={lens}
-                setSelectedCategory={setSelectedCategory}
+                onSelect={handleLensSelection}
               />
             );
           }
@@ -346,9 +358,8 @@ export default function Home() {
             return (
               <ContinuousLensComponent
                 lens={lens}
-                key={`${lens.label}-${i}`}
-                setCurrentLens={setCurrentLens}
-                setSelectedCategory={setSelectedCategory}
+                key={`continuous-${lens.label}-${i}`}
+                onSelect={handleLensSelection}
               />
             );
           }
@@ -359,6 +370,7 @@ export default function Home() {
           <ParentSize>
             {({ width, height }) => (
               <LandscapeViz
+                data={data}
                 width={width}
                 height={height}
                 currentLens={currentLensData}
@@ -374,66 +386,48 @@ export default function Home() {
 
 function CategoricalLensComponent({
   lens,
-  setSelectedCategory,
+  onSelect,
 }: {
   lens: CategoricalLens;
-  setSelectedCategory: (category: string | null) => void;
+  onSelect: (selectedLens: string, selectedCategory: string | null) => void;
 }) {
-  const categoriesBySegment = lens.segments.reduce((acc, segment) => {
-    return {
-      ...acc,
-      [segment.id]: segment.categories,
-    };
-  }, {}) as Record<string, CategoricalLens["segments"][0]["categories"]>;
+  const [selectedOption, setSelectedOption] = React.useState(lens.label);
+
+  const categories = lens.segments[0].categories;
 
   return (
     <select
-      key={`${lens.label}-select`}
       onChange={(e) => {
-        setSelectedCategory(e.target.value);
+        setSelectedOption(e.target.value);
+        onSelect(lens.label, e.target.value);
       }}
       className="text-black"
-      defaultValue={lens.label}
+      value={selectedOption}
     >
-      <option key={`${lens.label}-disabled`} disabled value={lens.label}>
+      <option disabled value={lens.label}>
         {lens.label}
       </option>
-      {Object.entries(categoriesBySegment).map(([segmentId, categories], i) => {
-        return (
-          i < 1 &&
-          categories.map((category, i) => {
-            return (
-              <option
-                key={`${lens.label} - ${category.label} - ${i}`}
-                value={`${category.label}`}
-              >
-                {category.label}
-              </option>
-            );
-          })
-        );
-      })}
+      {categories.map((category, i) => (
+        <option
+          key={`${lens.label} - ${category.label} - ${i}`}
+          value={`${category.label}`}
+        >
+          {category.label}
+        </option>
+      ))}
     </select>
   );
 }
 
 function ContinuousLensComponent({
   lens,
-  setCurrentLens,
-  setSelectedCategory,
+  onSelect,
 }: {
   lens: ContinuousLens;
-  setCurrentLens: (lens: string) => void;
-  setSelectedCategory: (category: string | null) => void;
+  onSelect: (selectedLens: string, selectedCategory: string | null) => void;
 }) {
   return (
-    <button
-      key={lens.label}
-      onClick={() => {
-        setCurrentLens(lens.label);
-        setSelectedCategory(null); // reset selected category
-      }}
-    >
+    <button key={lens.label} onClick={() => onSelect(lens.label, null)}>
       {lens.label}
     </button>
   );
