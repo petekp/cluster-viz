@@ -1,5 +1,7 @@
 "use client";
 
+// This prototype demonstrates a circle pack visualization with a continuous and categorical lenses. The categorical lenses support showing multiple entities across all segments.
+
 import React from "react";
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 
