@@ -107,13 +107,20 @@ export function generateMockData({
       label: `Continuous ${i + 1}`,
       type: "continuous",
       description: `This is a mock continuous lens ${i}`,
-      segments: mockSegments.map((segment) => ({
-        id: segment.id,
-        min: random(0, 100, false),
-        max: random(0, 4000, false),
-        mean: random(0, 3000, false),
-        median: random(0, 100, false),
-      })),
+      segments: mockSegments.map((segment) => {
+        const min = 0;
+        const max = numTotalCustomers;
+        const median = numTotalCustomers / 2;
+        const mean = random(0, numTotalCustomers, false);
+
+        return {
+          id: segment.id,
+          min,
+          max,
+          mean,
+          median,
+        };
+      }),
     });
   }
 

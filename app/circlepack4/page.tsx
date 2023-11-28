@@ -117,6 +117,7 @@ function LandscapeViz({
   type Datum = Segment & { children: any };
   const isContinuous = currentLens.type === "continuous";
   const isCategorical = currentLens.type === "categorical";
+  console.log(data.lenses);
 
   const preparedData = React.useMemo(() => {
     if (currentLens.type === "categorical" && selectedCategory) {
@@ -150,6 +151,7 @@ function LandscapeViz({
       ) as CategoricalLens;
       const [categories] = segments.map((s) => s.categories);
       domain = extent(categories, (cat) => cat.count);
+      console.log(domain);
     }
 
     return scaleQuantile({
@@ -192,58 +194,99 @@ function LandscapeViz({
                     ) as ContinuousLens["segments"][0];
 
                     const fill = isContinuous
-                      ? colorScale?.(segment.mean)
-                      : colorScale(circle.data.count);
-
-                    if (!circle.r || !circle.x || !circle.y) {
-                      return null;
-                    }
-
-                    return (
-                      <motion.circle
-                        key={`segment-${circle.data.label}`}
-                        initial={{
-                          fill,
-                          r: circle.r,
-                          cx: circle.x,
-                          cy: circle.y,
-                          opacity: 0,
-                          scale: 0.5,
-                        }}
-                        animate={{
-                          fill: fill,
-                          r: circle.r,
-                          cx: circle.x,
-                          cy: circle.y,
-                          opacity: 1,
-                          scale: 1,
-                        }}
-                        exit={{ opacity: 0, scale: 0 }}
-                        transition={transitionConfig}
-                      />
-                    );
-                  })}
-                </Group>
-                <Group transform={`translate(${0}, ${0})`}>
-                  {circles.map((circle) => {
-                    const segment = lensSegments.find(
-                      (segment) => segment.id === circle.data.id
-                    ) as ContinuousLens["segments"][0];
-
-                    const fill = isContinuous
                       ? colorScale(segment.mean)
                       : colorScale(circle.data.count);
+
                     const isFillLight = colord(fill).isLight();
                     const lightFill = colord(fill).lighten(0.8).toHex();
                     const darkFill = colord(fill).darken(0.8).toHex();
                     const labelColor = isFillLight ? darkFill : lightFill;
 
+                    if (!circle.r || !circle.x || !circle.y) {
+                      return null;
+                    }
+
+                    let innerCircleRadius;
+                    if (isContinuous) {
+                      innerCircleRadius =
+                        (segment.mean / segment.max) * circle.r;
+                    } else {
+                      innerCircleRadius =
+                        (circle.data.count / circle.parent.value) * circle.r;
+                    }
+
                     return (
-                      <CircleLabel
-                        key={`circle-label-${circle.data.label}-${circle.data.id}`}
-                        circle={circle}
-                        color={labelColor}
-                      />
+                      <>
+                        <defs>
+                          <mask id={`inner-stroke-${i}`}>
+                            <rect width="50%" height="50%" fill="white" />
+                            <circle cx="50%" cy="50%" r="45%" fill="black" />
+                          </mask>
+                        </defs>
+                        <motion.circle
+                          key={`circle-segment-inner-${circle.data.label}`}
+                          initial={{
+                            fill,
+                            r: innerCircleRadius,
+                            cx: circle.x,
+                            cy: circle.y,
+                            opacity: 0,
+                            scale: 0.5,
+                          }}
+                          animate={{
+                            fill: fill,
+                            r: innerCircleRadius,
+                            cx: circle.x,
+                            cy: circle.y,
+                            opacity: 1,
+                            scale: 1,
+                          }}
+                          exit={{
+                            fill: fill,
+                            r: innerCircleRadius,
+                            cx: circle.x,
+                            cy: circle.y,
+                            opacity: 0,
+                            scale: 0,
+                          }}
+                          transition={transitionConfig}
+                        />
+                        <motion.circle
+                          key={`circle-segment-${circle.data.label}`}
+                          mask={`url(#${`inner-stroke-${i}`}})`}
+                          filter="url(#inner-stroke-filter)"
+                          initial={{
+                            fill,
+                            r: circle.r,
+                            cx: circle.x,
+                            cy: circle.y,
+                            opacity: 0,
+                            scale: 0.5,
+                          }}
+                          animate={{
+                            fill: fill,
+                            r: circle.r,
+                            cx: circle.x,
+                            cy: circle.y,
+                            opacity: 1,
+                            scale: 1,
+                          }}
+                          exit={{
+                            fill: fill,
+                            r: circle.r,
+                            cx: circle.x,
+                            cy: circle.y,
+                            opacity: 0,
+                            scale: 0,
+                          }}
+                          transition={transitionConfig}
+                        />
+                        <CircleLabel
+                          key={`label-${circle.data.label}`}
+                          circle={circle}
+                          color={labelColor}
+                        />
+                      </>
                     );
                   })}
                 </Group>
@@ -251,6 +294,15 @@ function LandscapeViz({
             );
           }}
         </Pack>
+        <filter id="inner-stroke-filter">
+          <feMorphology
+            in="SourceGraphic"
+            operator="dilate"
+            radius="2"
+            result="dilated"
+          />
+          <feComposite in="SourceGraphic" in2="dilated" operator="xor" />
+        </filter>
       </motion.svg>
     </>
   );
@@ -273,7 +325,6 @@ function CircleLabel({ circle, color }: { circle: Circle; color: string }) {
       </filter>
       <motion.text
         className="select-none pointer-events-none"
-        key={`text-label-${circle.data.label}-${circle.data.id}`}
         transition={transitionConfig}
         textAnchor="middle"
         dominantBaseline="middle"
@@ -288,14 +339,18 @@ function CircleLabel({ circle, color }: { circle: Circle; color: string }) {
         animate={{
           opacity: 1,
           scale: 1,
+          fill: color,
           x: circle.x,
           y: circle.y,
+          fontSize,
         }}
         exit={{
           opacity: 0,
           scale: 0,
+          fill: color,
           x: circle.x,
           y: circle.y,
+          fontSize,
         }}
       >
         {circle.data.label}
@@ -312,7 +367,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(
     null
   );
-  const [numSegments, setNumSegments] = React.useState(80);
+  const [numSegments, setNumSegments] = React.useState(12);
 
   const debouncedSetNumSegments = React.useCallback(
     debounce(setNumSegments, 250),
