@@ -11,6 +11,7 @@ import { Group } from "@visx/group";
 import { Pack, hierarchy } from "@visx/hierarchy";
 import { scaleQuantile } from "@visx/scale";
 import { LegendQuantile } from "@visx/legend";
+import { colord } from "colord";
 
 import {
   CategoricalLens,
@@ -19,12 +20,21 @@ import {
   Segment,
   generateMockData,
 } from "./mockData";
+import { debounce } from "lodash";
 
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
 }
 
-const colorRange = ["#6d00a3", "#721d9a", "#5641ff", "#00d4ff", "#00ffc8"];
+const colorRange = ["#3900DC", "#842AF6", "#BD0DC1", "#00D4FF", "#00FFC8"];
+const colorRange2 = ["#3900DC", "#6D29FF", "#AB00FC", "#E40089", "#FFB763"];
+
+const transitionConfig = {
+  type: "spring",
+  damping: 2,
+  mass: 0.2,
+  stiffness: 5,
+};
 
 export type LandscapeVizProps = {
   width: number;
@@ -104,7 +114,6 @@ function LandscapeViz({
   selectedCategory,
   data,
 }: LandscapeVizProps) {
-  if (!data) return null;
   type Datum = Segment & { children: any };
   const isContinuous = currentLens.type === "continuous";
   const isCategorical = currentLens.type === "categorical";
@@ -145,7 +154,7 @@ function LandscapeViz({
 
     return scaleQuantile({
       domain,
-      range: colorRange,
+      range: colorRange2,
     });
   }, [isContinuous, isCategorical]);
 
@@ -186,46 +195,54 @@ function LandscapeViz({
                       ? colorScale?.(segment.mean)
                       : colorScale(circle.data.count);
 
+                    if (!circle.r || !circle.x || !circle.y) {
+                      return null;
+                    }
+
                     return (
                       <motion.circle
                         key={`segment-${circle.data.label}`}
-                        r={circle.r}
-                        cx={circle.x}
                         initial={{
                           fill,
+                          r: circle.r,
+                          cx: circle.x,
+                          cy: circle.y,
                           opacity: 0,
                           scale: 0.5,
                         }}
                         animate={{
-                          scale: 1,
-                          opacity: 1,
+                          fill: fill,
+                          r: circle.r,
                           cx: circle.x,
                           cy: circle.y,
-                          r: circle.r,
-                          fill: fill,
+                          opacity: 1,
+                          scale: 1,
                         }}
                         exit={{ opacity: 0, scale: 0 }}
-                        transition={{
-                          type: "spring",
-                          damping: 18,
-                          stiffness: 100,
-                        }}
-                        cy={circle.y}
-                        strokeWidth={0.2}
-                        stroke={"none"}
-                        fill={fill}
+                        transition={transitionConfig}
                       />
                     );
                   })}
                 </Group>
                 <Group transform={`translate(${0}, ${0})`}>
-                  {circles.map((circle, i) => {
+                  {circles.map((circle) => {
+                    const segment = lensSegments.find(
+                      (segment) => segment.id === circle.data.id
+                    ) as ContinuousLens["segments"][0];
+
+                    const fill = isContinuous
+                      ? colorScale(segment.mean)
+                      : colorScale(circle.data.count);
+                    const isFillLight = colord(fill).isLight();
+                    const lightFill = colord(fill).lighten(0.8).toHex();
+                    const darkFill = colord(fill).darken(0.8).toHex();
+                    const labelColor = isFillLight ? darkFill : lightFill;
+
                     return (
                       <CircleLabel
                         key={`circle-label-${circle.data.label}-${circle.data.id}`}
                         circle={circle}
-                        i={i}
-                        lensType={currentLens.type}
+                        color={labelColor}
                       />
                     );
                   })}
@@ -239,21 +256,7 @@ function LandscapeViz({
   );
 }
 
-const CircleLabel = function CircleLabel({
-  circle,
-  i,
-  lensType,
-}: {
-  circle: Circle;
-  i: number;
-  lensType: "categorical" | "continuous";
-}) {
-  const initialX = circle.x;
-  const initialY = circle.y;
-  const targetX = circle.x;
-  const targetY = circle.y;
-  const exitX = circle.x;
-  const exitY = circle.y;
+function CircleLabel({ circle, color }: { circle: Circle; color: string }) {
   const maxFontSize = 20;
   const fontSize = Math.min(circle.r * 0.2, maxFontSize);
 
@@ -270,63 +273,62 @@ const CircleLabel = function CircleLabel({
       </filter>
       <motion.text
         className="select-none pointer-events-none"
-        key={`text-label-${circle.data.label}-${circle.data.id}-${i}`}
+        key={`text-label-${circle.data.label}-${circle.data.id}`}
+        transition={transitionConfig}
+        textAnchor="middle"
+        dominantBaseline="middle"
         initial={{
           opacity: 0,
           scale: 0,
-          x: initialX,
-          y: initialY,
+          fill: color,
+          x: circle.x,
+          y: circle.y,
           fontSize,
         }}
         animate={{
           opacity: 1,
           scale: 1,
-          color: "white",
-          x: targetX,
-          y: targetY,
-          fontSize,
+          x: circle.x,
+          y: circle.y,
         }}
         exit={{
           opacity: 0,
-          scale: 1,
-          x: exitX,
-          y: exitY,
+          scale: 0,
+          x: circle.x,
+          y: circle.y,
         }}
-        color="white"
-        transition={{
-          type: "spring",
-          damping: 20,
-          stiffness: 100,
-        }}
-        fill="white"
-        textAnchor="middle"
-        dominantBaseline="middle"
       >
         {circle.data.label}
       </motion.text>
     </>
   );
-};
+}
 
 export default function Home() {
   const [data, setData] = React.useState<LandscapeVisualization | null>(null);
   const [currentLens, setCurrentLens] = React.useState<string | undefined>(
-    "Categorical 1"
+    "Continuous 1"
   );
   const [selectedCategory, setSelectedCategory] = React.useState<string | null>(
     null
   );
+  const [numSegments, setNumSegments] = React.useState(80);
+
+  const debouncedSetNumSegments = React.useCallback(
+    debounce(setNumSegments, 250),
+    []
+  );
 
   React.useEffect(() => {
     const mockData = generateMockData({
-      numSegments: 80,
+      numSegments: numSegments,
       numTotalCustomers: 1000000,
     });
     setData(mockData);
-  }, []);
+  }, [numSegments]);
 
   if (!data) {
-    return null; // or a loading spinner
+    return null;
   }
 
   const handleLensSelection = (
@@ -343,22 +345,35 @@ export default function Home() {
   return (
     <main className="w-full h-full flex">
       <div className="flex flex-col  flex-shrink-0 p-4">
+        <div className="flex flex-col mb-4">
+          <label htmlFor="numSegments"># segments {numSegments}</label>
+          <input
+            type="range"
+            id="numSegments"
+            name="numSegments"
+            min="1"
+            max="200"
+            value={numSegments}
+            onChange={(e) => debouncedSetNumSegments(Number(e.target.value))}
+          />
+        </div>
         {data.lenses.map((lens, i) => {
-          if (lens.type === "categorical") {
+          if (lens.type === "continuous") {
             return (
-              <CategoricalLensComponent
-                key={`categorical-${lens.label}-${i}`}
+              <ContinuousLensComponent
+                currentLens={currentLens}
                 lens={lens}
+                key={`continuous-${lens.label}-${i}`}
                 onSelect={handleLensSelection}
               />
             );
           }
 
-          if (lens.type === "continuous") {
+          if (lens.type === "categorical") {
             return (
-              <ContinuousLensComponent
+              <CategoricalLensComponent
+                key={`categorical-${lens.label}-${i}`}
                 lens={lens}
-                key={`continuous-${lens.label}-${i}`}
                 onSelect={handleLensSelection}
               />
             );
@@ -421,13 +436,21 @@ function CategoricalLensComponent({
 
 function ContinuousLensComponent({
   lens,
+  currentLens,
   onSelect,
 }: {
   lens: ContinuousLens;
+  currentLens: string | undefined;
   onSelect: (selectedLens: string, selectedCategory: string | null) => void;
 }) {
   return (
-    <button key={lens.label} onClick={() => onSelect(lens.label, null)}>
+    <button
+      key={lens.label}
+      className={`${
+        currentLens === lens.label ? "border-pink-500" : ""
+      } border border-gray-800 p-2`}
+      onClick={() => onSelect(lens.label, null)}
+    >
       {lens.label}
     </button>
   );

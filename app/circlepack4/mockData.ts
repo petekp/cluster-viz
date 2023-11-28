@@ -120,7 +120,7 @@ export function generateMockData({
   const mockData: LandscapeVisualization = {
     totalCount: numTotalCustomers,
     segments: mockSegments,
-    lenses: [...mockCategoricalLenses, ...mockContinuousLenses],
+    lenses: [...mockContinuousLenses, ...mockCategoricalLenses],
   };
 
   return mockData;
