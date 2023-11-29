@@ -4,7 +4,7 @@
 
 // The visualization is controlled through the table on the left. The table supports sorting and filtering. The table also supports selecting a lens and a category. The visualization will update to reflect the selected lens and category.
 
-import React from "react";
+import React, { Fragment } from "react";
 import { motion } from "framer-motion";
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 import { Group } from "@visx/group";
@@ -32,20 +32,13 @@ import { LensProvider, useLensDispatch, useLensState } from "./LensContext";
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
 }
-const colorRange2 = ["#3900DC", "#6D29FF", "#AB00FC", "#E40089", "#FFB763"];
+const colorRange2 = ["#3900DC", "#6D29FF", "#AB00FC", "#E40089", "#FF1D38"];
 
 const transitionConfig = {
   type: "spring",
   damping: 2,
   mass: 0.2,
   stiffness: 5,
-};
-
-export type LandscapeVizProps = {
-  width: number;
-  height: number;
-  data: LandscapeVisualization;
-  margin?: { top: number; right: number; bottom: number; left: number };
 };
 
 function prepareTableData(data: LandscapeVisualization) {
@@ -76,35 +69,38 @@ function prepareTableData(data: LandscapeVisualization) {
 
 function prepareLensData({
   data,
-  selectedCategory,
-  currentLensData,
+  activeCategory,
+  activeLensData,
 }: {
   data: LandscapeVisualization;
-  selectedCategory: string | null;
-  currentLensData?: CategoricalLens | ContinuousLens;
-}): any {
-  if (!currentLensData) return;
-
-  if (currentLensData.type === "categorical" && selectedCategory) {
-    // Find the maximum count for the selected category across all segments
+  activeCategory: string | null;
+  activeLensData: CategoricalLens | ContinuousLens | undefined;
+}) {
+  if (
+    activeLensData &&
+    activeLensData.type === "categorical" &&
+    activeCategory
+  ) {
     const maxCount = Math.max(
-      ...currentLensData.segments.map(
+      ...activeLensData.segments.map(
         (segment) =>
-          segment.categories.find((c) => c.label === selectedCategory)?.count ||
-          0
+          segment.categories.find((c) => c.label === activeCategory)?.count || 0
       )
     );
 
     return {
       id: "root",
+      label: "root",
+      description: "",
+      count: 0,
+      value: 0,
       children: data.segments.map((segment) => {
-        const matchingSegment = currentLensData.segments.find(
+        const matchingSegment = activeLensData.segments.find(
           (s) => s.id === segment.id
         );
         const matchingCategory = matchingSegment?.categories.find(
-          (c) => c.label === selectedCategory
+          (c) => c.label === activeCategory
         );
-        // Scale the count for the selected category based on the maximum count
         const value = matchingCategory
           ? (matchingCategory.count / maxCount) * segment.count
           : 0;
@@ -116,11 +112,11 @@ function prepareLensData({
     };
   }
 
-  if (currentLensData.type === "continuous") {
+  if (activeLensData && activeLensData.type === "continuous") {
     return {
       id: "",
       children: data.segments.map((segment) => {
-        const matchingSegment = currentLensData.segments.find(
+        const matchingSegment = activeLensData.segments.find(
           (s) => s.id === segment.id
         );
         return {
@@ -131,8 +127,21 @@ function prepareLensData({
       label: "root",
       description: "",
       count: 0,
+      value: 0,
     };
   }
+
+  return {
+    id: "root",
+    children: data.segments.map((segment) => ({
+      ...segment,
+      value: segment.count,
+    })),
+    label: "",
+    description: "",
+    count: 0,
+    value: 0,
+  };
 }
 
 function transformlabel({
@@ -165,21 +174,25 @@ type Circle = {
   };
 };
 
+export type LandscapeVizProps = {
+  width: number;
+  height: number;
+  data: LandscapeVisualization;
+  margin?: { top: number; right: number; bottom: number; left: number };
+};
+
+type Datum = Segment & { children: Segment[]; value: number };
+
 function LandscapeViz({ width, height, data }: LandscapeVizProps) {
-  type Datum = Segment & { children: any };
-  const { currentLens, selectedCategory } = useLensState();
+  const { activeLens, activeCategory } = useLensState();
 
-  console.log(currentLens, selectedCategory);
-
-  const currentLensData = React.useMemo(() => {
-    return data.lenses.find((lens) => lens.label === currentLens);
-  }, [data, currentLens, selectedCategory]);
-
-  console.log(currentLensData);
+  const activeLensData = React.useMemo(() => {
+    return data.lenses.find((lens) => lens.label === activeLens);
+  }, [data, activeLens, activeCategory]);
 
   const preparedData = React.useMemo(() => {
-    return prepareLensData({ data, currentLensData, selectedCategory });
-  }, [data, currentLens, selectedCategory]);
+    return prepareLensData({ data, activeLensData, activeCategory });
+  }, [data, activeLensData, activeCategory]);
 
   const root = React.useMemo(() => {
     return hierarchy<Datum>(preparedData)
@@ -187,18 +200,20 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
       .sort((a, b) => {
         return b.data.count - a.data.count;
       });
-  }, [preparedData, selectedCategory, currentLens]);
+  }, [preparedData, activeCategory, activeLens]);
 
   const colorScale = React.useMemo(() => {
     let domain: [number, number] = [0, 0];
 
-    if (selectedCategory) {
+    if (activeCategory) {
       domain = extent(preparedData.children, (segment) => segment.value);
     } else {
-      const { segments } = data.lenses.find(
-        (lens) => lens.label === currentLens
-      ) as ContinuousLens;
-      domain = extent(segments, (s) => s.mean);
+      const lens = data.lenses.find((lens) => lens.label === activeLens);
+      if (lens && lens.type === "continuous") {
+        domain = extent(lens.segments, (s) => s.mean);
+      } else {
+        domain = extent(data.segments, (s) => s.count);
+      }
     }
 
     return scaleQuantile({
@@ -225,9 +240,8 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
         <Pack<Datum> root={root} size={[width, height]} padding={10}>
           {(packData) => {
             const circles = packData.descendants().slice(1);
-            const lensSegments = data.lenses.find(
-              (lens) => lens.label === currentLens
-            )!.segments;
+            const lens = data.lenses.find((lens) => lens.label === activeLens);
+            const lensSegments = lens ? lens.segments : [];
 
             return (
               <>
@@ -240,9 +254,10 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
                       (segment) => segment.id === circle.data.id
                     ) as ContinuousLens["segments"][0];
 
-                    const fill = selectedCategory
-                      ? colorScale(circle.data.count)
-                      : colorScale(segment.mean);
+                    const fill =
+                      activeCategory || !segment
+                        ? colorScale(circle.data.count)
+                        : colorScale(segment.mean);
 
                     const isFillLight = colord(fill).isLight();
                     const lightFill = colord(fill).lighten(0.8).toHex();
@@ -254,7 +269,9 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
                     }
 
                     let innerCircleRadius;
-                    if (!selectedCategory) {
+                    if (!activeLens) {
+                      innerCircleRadius = circle.r;
+                    } else if (!activeCategory) {
                       innerCircleRadius =
                         (segment.mean / segment.max) * circle.r;
                     } else {
@@ -272,8 +289,8 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
                     }
 
                     return (
-                      <>
-                        <defs>
+                      <Fragment key={`circle-${i}`}>
+                        <defs key={`inner-stroke-${i}`}>
                           <mask id={`inner-stroke-${i}`}>
                             <rect width="50%" height="50%" fill="white" />
                             <circle cx="50%" cy="50%" r="45%" fill="black" />
@@ -308,7 +325,7 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
                           transition={transitionConfig}
                         />
                         <motion.circle
-                          key={`circle-segment-${circle.data.label}`}
+                          key={`circle-segment-outer-${circle.data.label}`}
                           mask={`url(#${`inner-stroke-${i}`}})`}
                           filter="url(#inner-stroke-filter)"
                           initial={{
@@ -342,7 +359,7 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
                           circle={circle}
                           color={labelColor}
                         />
-                      </>
+                      </Fragment>
                     );
                   })}
                 </Group>
@@ -470,7 +487,7 @@ export default function Home() {
 }
 
 function SegmentsTable({ data }: { data: LandscapeVisualization }) {
-  const { currentLens, selectedCategory } = useLensState();
+  const { activeLens, activeCategory } = useLensState();
   const dispatch = useLensDispatch();
 
   const tableData = React.useMemo(() => prepareTableData(data), [data]);
@@ -521,30 +538,30 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
             onClick={() => {
               if (lens.type === "continuous") {
                 dispatch({
-                  type: "SET_LENS",
+                  type: "SET_ACTIVE_LENS",
                   payload: lens.label,
                 });
                 dispatch({
-                  type: "SET_CATEGORY",
+                  type: "SET_ACTIVE_LENS_CATEGORY",
                   payload: null,
                 });
               }
             }}
-            className="cursor-pointer flex flex-col h-8"
+            className="cursor-pointer flex flex-col h-8 hover:bg-gray-800 active:bg-gray-600 mr-2"
             style={{ cursor: "pointer" }}
           >
             {lens.label}
             {lens.type === "categorical" && (
               <select
                 className="text-black text-xs"
-                value={currentLens === lens.label ? selectedCategory! : ""}
+                value={activeLens === lens.label ? activeCategory! : ""}
                 onChange={(e) => {
                   dispatch({
-                    type: "SET_LENS",
+                    type: "SET_ACTIVE_LENS",
                     payload: lens.label,
                   });
                   dispatch({
-                    type: "SET_CATEGORY",
+                    type: "SET_ACTIVE_LENS_CATEGORY",
                     payload: e.target.value,
                   });
                 }}
@@ -568,7 +585,7 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                   (s) => s.id === info.row.original.id
                 );
                 const categoryData = lensData?.categories.find(
-                  (c) => c.label === selectedCategory
+                  (c) => c.label === activeCategory
                 );
                 return categoryData?.count || 0;
               }

@@ -2,7 +2,7 @@
 
 // This prototype demonstrates a circle pack visualization with a continuous and categorical lenses. The categorical lenses support showing multiple entities across all segments.
 
-import React from "react";
+import React, { Fragment } from "react";
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 
 import { Group } from "@visx/group";
@@ -206,7 +206,7 @@ function LandscapeViz({
                         : colorScale(circle.data.count);
 
                       return (
-                        <>
+                        <Fragment key={`${circle.data.label}-${i}`}>
                           <motion.circle
                             onMouseOver={(event: any, datum: any) => {
                               const eventSvgCoords = localPoint(event);
@@ -252,7 +252,7 @@ function LandscapeViz({
                             }}
                             fill={fill}
                           />
-                        </>
+                        </Fragment>
                       );
                     })}
                   </AnimatePresence>
@@ -261,6 +261,7 @@ function LandscapeViz({
                   {circles.map((circle, i) => {
                     return (
                       <CircleLabel
+                        key={`${circle.data.label}-${i}`}
                         circle={circle}
                         i={i}
                         lensType={currentLens.type}

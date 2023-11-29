@@ -187,7 +187,7 @@ const MyPie = () => (
   />
 );
 
-const MyResponsiveCirclePacking = ({ data /* see data tab */ }) => (
+const MyResponsiveCirclePacking = ({ data }: { data: any }) => (
   <ResponsiveCirclePacking
     data={data}
     margin={{ top: 20, right: 20, bottom: 20, left: 20 }}

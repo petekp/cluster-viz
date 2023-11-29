@@ -327,7 +327,7 @@ export default function Home() {
   );
 }
 
-const MyResponsivePie = ({ data }) => (
+const MyResponsivePie = ({ data }: { data: any }) => (
   <ResponsivePie
     data={data}
     margin={{ top: 40, right: 80, bottom: 80, left: 80 }}

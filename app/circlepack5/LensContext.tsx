@@ -7,20 +7,38 @@ import {
 } from "react";
 
 type State = {
-  currentLens: string | null;
-  selectedCategory: string | null;
+  activeLens: string | null;
+  activeCategory: string | null;
+  selectedCategories: {
+    [lens: string]: string;
+  };
 };
 
 type Action =
-  | { type: "SET_LENS"; payload: string | null }
-  | { type: "SET_CATEGORY"; payload: string | null };
+  | { type: "SET_ACTIVE_LENS"; payload: string | null }
+  | { type: "SET_ACTIVE_LENS_CATEGORY"; payload: string | null }
+  | {
+      type: "SET_SELECTED_CATEGORY_FOR_LENS";
+      payload: {
+        lens: string;
+        category: string;
+      };
+    };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case "SET_LENS":
-      return { ...state, currentLens: action.payload };
-    case "SET_CATEGORY":
-      return { ...state, selectedCategory: action.payload };
+    case "SET_ACTIVE_LENS":
+      return { ...state, activeLens: action.payload };
+    case "SET_ACTIVE_LENS_CATEGORY":
+      return { ...state, activeCategory: action.payload };
+    case "SET_SELECTED_CATEGORY_FOR_LENS":
+      return {
+        ...state,
+        selectedCategories: {
+          ...state.selectedCategories,
+          [action.payload.lens]: action.payload.category,
+        },
+      };
     default:
       return state;
   }
@@ -49,8 +67,9 @@ export function useLensDispatch() {
 
 export function LensProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
-    currentLens: "Continuous 1",
-    selectedCategory: null,
+    activeLens: null,
+    activeCategory: null,
+    selectedCategories: {},
   });
 
   return (
