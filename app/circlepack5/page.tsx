@@ -17,6 +17,8 @@ import {
   flexRender,
   useReactTable,
   getCoreRowModel,
+  SortingState,
+  getSortedRowModel,
 } from "@tanstack/react-table";
 
 import {
@@ -488,12 +490,16 @@ export default function Home() {
 
 function SegmentsTable({ data }: { data: LandscapeVisualization }) {
   const { activeLens, activeCategory } = useLensState();
+  const [activeColumnId, setActiveColumnId] = React.useState<string | null>(
+    null
+  );
+
+  console.log(activeColumnId);
+
   const dispatch = useLensDispatch();
 
   const tableData = React.useMemo(() => prepareTableData(data), [data]);
-
   const columnHelper = createColumnHelper<any>();
-
   const columns = React.useMemo(() => {
     const baseColumns = [
       columnHelper.accessor("label", {
@@ -509,9 +515,7 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
             </button>
           );
         },
-        sortingFn: "alphanumeric",
         cell: (info) => info.getValue(),
-        enableSorting: true,
       }),
       columnHelper.accessor("count", {
         header: (ctx) => {
@@ -525,8 +529,9 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
           );
         },
         cell: (info) => {
-          return info.getValue();
+          return info.getValue().toLocaleString();
         },
+        sortingFn: "auto",
         enableSorting: true,
       }),
     ];
@@ -550,7 +555,7 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
             className="cursor-pointer flex flex-col h-8 hover:bg-gray-800 active:bg-gray-600 mr-2"
             style={{ cursor: "pointer" }}
           >
-            {lens.label}
+            {lens.type !== "categorical" ? lens.label : null}
             {lens.type === "categorical" && (
               <select
                 className="text-black text-xs"
@@ -566,6 +571,9 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                   });
                 }}
               >
+                <option disabled value="">
+                  {lens.label}
+                </option>
                 {lens.segments[0].categories.map((category, index) => (
                   <option
                     key={`${category.label}-${index}`}
@@ -587,9 +595,9 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                 const categoryData = lensData?.categories.find(
                   (c) => c.label === activeCategory
                 );
-                return categoryData?.count || 0;
+                return categoryData?.count.toLocaleString() || 0;
               }
-            : (info) => info.getValue(),
+            : (info) => info.getValue().toLocaleString(),
         enableSorting: true,
       })
     );
@@ -601,16 +609,26 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
     data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     enableSorting: true,
   });
 
   return (
-    <table className="text-xs">
+    <table className="text-sm">
       <thead>
         {table.getHeaderGroups().map((headerGroup) => (
           <tr key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
-              <th key={header.id}>
+              <th
+                className={`${
+                  header.id === activeColumnId ? "bg-red-600" : ""
+                } p-2 text-left`}
+                key={header.id}
+                onClick={() => {
+                  header.column.toggleSorting();
+                  setActiveColumnId(header.column.id);
+                }}
+              >
                 {header.isPlaceholder
                   ? null
                   : flexRender(
@@ -626,7 +644,10 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
         {table.getRowModel().rows.map((row) => (
           <tr key={row.id}>
             {row.getVisibleCells().map((cell) => (
-              <td key={cell.id}>
+              <td
+                key={cell.id}
+                className="tabular-nums p-2 border-b border-gray-800"
+              >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </td>
             ))}
