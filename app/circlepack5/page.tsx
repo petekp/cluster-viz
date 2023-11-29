@@ -2,7 +2,7 @@
 
 // This prototype demonstrates a circle pack visualization with a continuous and categorical lenses. The categorical lenses support showing a SINGLE entity across all segments.
 
-// The user is required to select a specific entity within a category to see the distribution of that entity across all segments.
+// The visualization is controlled through the table on the left. The table supports sorting and filtering. The table also supports selecting a lens and a category. The visualization will update to reflect the selected lens and category.
 
 import React from "react";
 import { motion } from "framer-motion";
@@ -27,6 +27,7 @@ import {
   generateMockData,
 } from "./mockData";
 import { debounce } from "lodash";
+import { LensProvider, useLensDispatch, useLensState } from "./LensContext";
 
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
@@ -45,8 +46,6 @@ export type LandscapeVizProps = {
   height: number;
   data: LandscapeVisualization;
   margin?: { top: number; right: number; bottom: number; left: number };
-  currentLens: CategoricalLens | ContinuousLens;
-  selectedCategory: string | null;
 };
 
 function prepareTableData(data: LandscapeVisualization) {
@@ -75,15 +74,21 @@ function prepareTableData(data: LandscapeVisualization) {
   });
 }
 
-function prepareLensData(
-  data: LandscapeVisualization,
-  currentLens: CategoricalLens | ContinuousLens,
-  selectedCategory?: string
-): any {
-  if (currentLens.type === "categorical" && selectedCategory) {
+function prepareLensData({
+  data,
+  selectedCategory,
+  currentLensData,
+}: {
+  data: LandscapeVisualization;
+  selectedCategory: string | null;
+  currentLensData?: CategoricalLens | ContinuousLens;
+}): any {
+  if (!currentLensData) return;
+
+  if (currentLensData.type === "categorical" && selectedCategory) {
     // Find the maximum count for the selected category across all segments
     const maxCount = Math.max(
-      ...currentLens.segments.map(
+      ...currentLensData.segments.map(
         (segment) =>
           segment.categories.find((c) => c.label === selectedCategory)?.count ||
           0
@@ -93,7 +98,7 @@ function prepareLensData(
     return {
       id: "root",
       children: data.segments.map((segment) => {
-        const matchingSegment = currentLens.segments.find(
+        const matchingSegment = currentLensData.segments.find(
           (s) => s.id === segment.id
         );
         const matchingCategory = matchingSegment?.categories.find(
@@ -111,11 +116,11 @@ function prepareLensData(
     };
   }
 
-  if (currentLens.type === "continuous") {
+  if (currentLensData.type === "continuous") {
     return {
       id: "",
       children: data.segments.map((segment) => {
-        const matchingSegment = currentLens.segments.find(
+        const matchingSegment = currentLensData.segments.find(
           (s) => s.id === segment.id
         );
         return {
@@ -160,19 +165,20 @@ type Circle = {
   };
 };
 
-function LandscapeViz({
-  width,
-  height,
-  currentLens,
-  selectedCategory,
-  data,
-}: LandscapeVizProps) {
+function LandscapeViz({ width, height, data }: LandscapeVizProps) {
   type Datum = Segment & { children: any };
-  const isContinuous = currentLens.type === "continuous";
-  const isCategorical = currentLens.type === "categorical";
+  const { currentLens, selectedCategory } = useLensState();
+
+  console.log(currentLens, selectedCategory);
+
+  const currentLensData = React.useMemo(() => {
+    return data.lenses.find((lens) => lens.label === currentLens);
+  }, [data, currentLens, selectedCategory]);
+
+  console.log(currentLensData);
 
   const preparedData = React.useMemo(() => {
-    return prepareLensData(data, currentLens, selectedCategory);
+    return prepareLensData({ data, currentLensData, selectedCategory });
   }, [data, currentLens, selectedCategory]);
 
   const root = React.useMemo(() => {
@@ -186,22 +192,20 @@ function LandscapeViz({
   const colorScale = React.useMemo(() => {
     let domain: [number, number] = [0, 0];
 
-    if (isContinuous) {
+    if (selectedCategory) {
+      domain = extent(preparedData.children, (segment) => segment.value);
+    } else {
       const { segments } = data.lenses.find(
-        (lens) => lens.label === currentLens.label
+        (lens) => lens.label === currentLens
       ) as ContinuousLens;
       domain = extent(segments, (s) => s.mean);
-    }
-
-    if (isCategorical) {
-      domain = extent(preparedData.children, (segment) => segment.value);
     }
 
     return scaleQuantile({
       domain,
       range: colorRange2,
     });
-  }, [isContinuous, isCategorical, preparedData]);
+  }, [preparedData]);
 
   return width < 10 ? null : (
     <>
@@ -222,7 +226,7 @@ function LandscapeViz({
           {(packData) => {
             const circles = packData.descendants().slice(1);
             const lensSegments = data.lenses.find(
-              (lens) => lens.label === currentLens.label
+              (lens) => lens.label === currentLens
             )!.segments;
 
             return (
@@ -236,9 +240,9 @@ function LandscapeViz({
                       (segment) => segment.id === circle.data.id
                     ) as ContinuousLens["segments"][0];
 
-                    const fill = isContinuous
-                      ? colorScale(segment.mean)
-                      : colorScale(circle.data.count);
+                    const fill = selectedCategory
+                      ? colorScale(circle.data.count)
+                      : colorScale(segment.mean);
 
                     const isFillLight = colord(fill).isLight();
                     const lightFill = colord(fill).lighten(0.8).toHex();
@@ -250,7 +254,7 @@ function LandscapeViz({
                     }
 
                     let innerCircleRadius;
-                    if (isContinuous) {
+                    if (!selectedCategory) {
                       innerCircleRadius =
                         (segment.mean / segment.max) * circle.r;
                     } else {
@@ -413,13 +417,6 @@ function CircleLabel({ circle, color }: { circle: Circle; color: string }) {
 
 export default function Home() {
   const [data, setData] = React.useState<LandscapeVisualization | null>(null);
-  const [currentLens, setCurrentLens] = React.useState<string | undefined>(
-    "Continuous 1"
-  );
-  const [selectedCategory, setSelectedCategory] = React.useState<string | null>(
-    null
-  );
-  console.log(selectedCategory);
   const [numSegments, setNumSegments] = React.useState(12);
 
   const debouncedSetNumSegments = React.useCallback(
@@ -439,150 +436,43 @@ export default function Home() {
     return null;
   }
 
-  const handleLensSelection = (
-    selectedLens: string,
-    selectedCategory: string | null
-  ) => {
-    setCurrentLens(selectedLens);
-    setSelectedCategory(selectedCategory);
-  };
-
-  const currentLensData =
-    data.lenses.find((lens) => lens.label === currentLens) || data.lenses[0];
-
   return (
-    <main className="w-full h-full flex">
-      <SegmentsTable
-        data={data}
-        setCurrentLens={setCurrentLens}
-        setSelectedCategory={setSelectedCategory}
-      />
+    <LensProvider>
+      <main className="w-full h-full flex">
+        <div className="flex flex-col  flex-shrink-0 p-4">
+          <div className="flex flex-col mb-4">
+            <label htmlFor="numSegments"># segments {numSegments}</label>
+            <input
+              type="range"
+              id="numSegments"
+              name="numSegments"
+              min="1"
+              max="100"
+              value={numSegments}
+              onChange={(e) => debouncedSetNumSegments(Number(e.target.value))}
+            />
+          </div>
 
-      <div className="flex flex-col  flex-shrink-0 p-4">
-        <div className="flex flex-col mb-4">
-          <label htmlFor="numSegments"># segments {numSegments}</label>
-          <input
-            type="range"
-            id="numSegments"
-            name="numSegments"
-            min="1"
-            max="100"
-            value={numSegments}
-            onChange={(e) => debouncedSetNumSegments(Number(e.target.value))}
-          />
+          <SegmentsTable data={data} />
         </div>
-        {data.lenses.map((lens, i) => {
-          if (lens.type === "continuous") {
-            return (
-              <ContinuousLensComponent
-                currentLens={currentLens}
-                lens={lens}
-                key={`continuous-${lens.label}-${i}`}
-                onSelect={handleLensSelection}
-              />
-            );
-          }
-
-          if (lens.type === "categorical") {
-            return (
-              <CategoricalLensComponent
-                key={`categorical-${lens.label}-${i}`}
-                lens={lens}
-                selectedLens={currentLens}
-                selectedCategory={selectedCategory}
-                onSelect={handleLensSelection}
-              />
-            );
-          }
-        })}
-      </div>
-      <div className="flex flex-1 ">
-        <>
-          <ParentSize>
-            {({ width, height }) => (
-              <LandscapeViz
-                data={data}
-                width={width}
-                height={height}
-                currentLens={currentLensData}
-                selectedCategory={selectedCategory}
-              />
-            )}
-          </ParentSize>
-        </>
-      </div>
-    </main>
+        <div className="flex flex-1 ">
+          <>
+            <ParentSize>
+              {({ width, height }) => (
+                <LandscapeViz data={data} width={width} height={height} />
+              )}
+            </ParentSize>
+          </>
+        </div>
+      </main>
+    </LensProvider>
   );
 }
 
-function CategoricalLensComponent({
-  lens,
-  selectedCategory,
-  selectedLens,
-  onSelect,
-}: {
-  lens: CategoricalLens;
-  selectedCategory: string | null;
-  selectedLens: string | undefined;
-  onSelect: (selectedLens: string, selectedCategory: string | null) => void;
-}) {
-  const categories = lens.segments[0].categories;
-  const isCurrentLens = selectedLens === lens.label;
+function SegmentsTable({ data }: { data: LandscapeVisualization }) {
+  const { currentLens, selectedCategory } = useLensState();
+  const dispatch = useLensDispatch();
 
-  return (
-    <div className="text-black flex flex-col">
-      <div className="text-gray-500 mb-1 mt-2">{lens.label}</div>
-      {categories.map((category, i) => (
-        <button
-          className={`${
-            selectedCategory === category.label && isCurrentLens
-              ? "border-pink-500"
-              : ""
-          } border border-gray-800 p-0 text-white ml-2 text-sm`}
-          key={`${lens.label} - ${category.label} - ${i}`}
-          value={`${category.label}`}
-          onClick={(e) => {
-            onSelect(lens.label, category.label);
-          }}
-        >
-          {category.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ContinuousLensComponent({
-  lens,
-  currentLens,
-  onSelect,
-}: {
-  lens: ContinuousLens;
-  currentLens: string | undefined;
-  onSelect: (selectedLens: string, selectedCategory: string | null) => void;
-}) {
-  return (
-    <button
-      key={lens.label}
-      className={`${
-        currentLens === lens.label ? "border-pink-500" : ""
-      } border border-gray-800 p-2`}
-      onClick={() => onSelect(lens.label, null)}
-    >
-      {lens.label}
-    </button>
-  );
-}
-
-function SegmentsTable({
-  data,
-  setCurrentLens,
-  setSelectedCategory,
-}: {
-  data: LandscapeVisualization;
-  setCurrentLens: (lens: string) => void;
-  setSelectedCategory: (category: string | null) => void;
-}) {
   const tableData = React.useMemo(() => prepareTableData(data), [data]);
 
   const columnHelper = createColumnHelper<any>();
@@ -590,55 +480,111 @@ function SegmentsTable({
   const columns = React.useMemo(() => {
     const baseColumns = [
       columnHelper.accessor("label", {
-        header: "Label",
+        header: (ctx) => {
+          return (
+            <button
+              className="h-8 flex flex-col"
+              onClick={() => {
+                ctx.column.toggleSorting();
+              }}
+            >
+              Label
+            </button>
+          );
+        },
+        sortingFn: "alphanumeric",
         cell: (info) => info.getValue(),
+        enableSorting: true,
       }),
       columnHelper.accessor("count", {
-        header: "Count",
-        cell: (info) => info.getValue(),
+        header: (ctx) => {
+          return (
+            <button
+              className="h-8 flex flex-col"
+              onClick={() => ctx.column.toggleSorting()}
+            >
+              Count
+            </button>
+          );
+        },
+        cell: (info) => {
+          return info.getValue();
+        },
+        enableSorting: true,
       }),
     ];
 
     const lensColumns = data.lenses.map((lens) =>
       columnHelper.accessor(lens.label, {
-        header:
-          lens.type === "categorical"
-            ? () => (
-                <div style={{ cursor: "pointer" }}>
-                  {lens.label}
-                  <select
-                    onChange={(e) => {
-                      setCurrentLens(lens.label);
-                      setSelectedCategory(e.target.value);
-                    }}
+        header: (ctx) => (
+          <div
+            onClick={() => {
+              if (lens.type === "continuous") {
+                dispatch({
+                  type: "SET_LENS",
+                  payload: lens.label,
+                });
+                dispatch({
+                  type: "SET_CATEGORY",
+                  payload: null,
+                });
+              }
+            }}
+            className="cursor-pointer flex flex-col h-8"
+            style={{ cursor: "pointer" }}
+          >
+            {lens.label}
+            {lens.type === "categorical" && (
+              <select
+                className="text-black text-xs"
+                value={currentLens === lens.label ? selectedCategory! : ""}
+                onChange={(e) => {
+                  dispatch({
+                    type: "SET_LENS",
+                    payload: lens.label,
+                  });
+                  dispatch({
+                    type: "SET_CATEGORY",
+                    payload: e.target.value,
+                  });
+                }}
+              >
+                {lens.segments[0].categories.map((category, index) => (
+                  <option
+                    key={`${category.label}-${index}`}
+                    value={category.label}
                   >
-                    {lens.segments[0].categories.map((category, index) => (
-                      <option key={index} value={category.label}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )
-            : () => (
-                <span
-                  onClick={() => setCurrentLens(lens.label)}
-                  style={{ cursor: "pointer" }}
-                >
-                  {lens.label}
-                </span>
-              ),
-        cell: (info) => info.getValue(),
+                    {category.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        ),
+        cell:
+          lens.type === "categorical"
+            ? (info) => {
+                const lensData = lens.segments.find(
+                  (s) => s.id === info.row.original.id
+                );
+                const categoryData = lensData?.categories.find(
+                  (c) => c.label === selectedCategory
+                );
+                return categoryData?.count || 0;
+              }
+            : (info) => info.getValue(),
+        enableSorting: true,
       })
     );
 
     return [...baseColumns, ...lensColumns];
-  }, [data, columnHelper, setCurrentLens, setSelectedCategory]);
+  }, [data, columnHelper, dispatch]);
 
   const table = useReactTable({
     data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    enableSorting: true,
   });
 
   return (
