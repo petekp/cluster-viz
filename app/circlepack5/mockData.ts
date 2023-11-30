@@ -1,14 +1,5 @@
 import { random, sum } from "lodash";
 
-export type DataTableRow = {
-  segmentName: string;
-  segmentCount: string;
-  lens1: number;
-  lens2: number;
-  lens3: number;
-  lens4: number;
-};
-
 export type LandscapeVisualization = {
   totalCount: number;
   segments: Array<Segment>;

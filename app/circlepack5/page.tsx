@@ -5,11 +5,11 @@
 // The visualization is controlled through the table on the left. The table supports sorting and filtering. The table also supports selecting a lens and a category. The visualization will update to reflect the selected lens and category.
 
 import React, { Fragment } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 import { Group } from "@visx/group";
-import { Pack, hierarchy } from "@visx/hierarchy";
-import { scaleQuantile, scaleSqrt } from "@visx/scale";
+import { Pack } from "@visx/hierarchy";
+import { scaleSqrt } from "@visx/scale";
 import { LegendQuantile } from "@visx/legend";
 import { colord } from "colord";
 import {
@@ -17,12 +17,10 @@ import {
   flexRender,
   useReactTable,
   getCoreRowModel,
-  SortingState,
   getSortedRowModel,
 } from "@tanstack/react-table";
 
 import {
-  CategoricalLens,
   ContinuousLens,
   LandscapeVisualization,
   Segment,
@@ -30,11 +28,8 @@ import {
 } from "./mockData";
 import { debounce } from "lodash";
 import { LensProvider, useLensDispatch, useLensState } from "./LensContext";
-
-function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
-  return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
-}
-const colorRange2 = ["#3900DC", "#6D29FF", "#AB00FC", "#E40089", "#FF1D38"];
+import usePreparedData from "./usePreparedData";
+import useColorScale from "./useColorScale";
 
 const transitionConfig = {
   type: "spring",
@@ -67,83 +62,6 @@ function prepareTableData(data: LandscapeVisualization) {
 
     return row;
   });
-}
-
-function prepareLensData({
-  data,
-  activeCategory,
-  activeLensData,
-}: {
-  data: LandscapeVisualization;
-  activeCategory: string | null;
-  activeLensData: CategoricalLens | ContinuousLens | undefined;
-}) {
-  if (
-    activeLensData &&
-    activeLensData.type === "categorical" &&
-    activeCategory
-  ) {
-    const maxCount = Math.max(
-      ...activeLensData.segments.map(
-        (segment) =>
-          segment.categories.find((c) => c.label === activeCategory)?.count || 0
-      )
-    );
-
-    return {
-      id: "root",
-      label: "root",
-      description: "",
-      count: 0,
-      value: 0,
-      children: data.segments.map((segment) => {
-        const matchingSegment = activeLensData.segments.find(
-          (s) => s.id === segment.id
-        );
-        const matchingCategory = matchingSegment?.categories.find(
-          (c) => c.label === activeCategory
-        );
-        const value = matchingCategory
-          ? (matchingCategory.count / maxCount) * segment.count
-          : 0;
-        return {
-          ...segment,
-          value,
-        };
-      }),
-    };
-  }
-
-  if (activeLensData && activeLensData.type === "continuous") {
-    return {
-      id: "",
-      children: data.segments.map((segment) => {
-        const matchingSegment = activeLensData.segments.find(
-          (s) => s.id === segment.id
-        );
-        return {
-          ...segment,
-          value: matchingSegment ? matchingSegment.mean : 0,
-        };
-      }),
-      label: "root",
-      description: "",
-      count: 0,
-      value: 0,
-    };
-  }
-
-  return {
-    id: "root",
-    children: data.segments.map((segment) => ({
-      ...segment,
-      value: segment.count,
-    })),
-    label: "",
-    description: "",
-    count: 0,
-    value: 0,
-  };
 }
 
 function transformlabel({
@@ -183,55 +101,28 @@ export type LandscapeVizProps = {
   margin?: { top: number; right: number; bottom: number; left: number };
 };
 
-type Datum = Segment & { children: Segment[]; value: number };
+export type Datum = Segment & { children: Segment[]; value: number };
 
 function LandscapeViz({ width, height, data }: LandscapeVizProps) {
   const { activeLens, activeCategory } = useLensState();
+  const { preparedData, root } = usePreparedData({
+    data,
+    activeLens,
+    activeCategory,
+  });
 
-  const activeLensData = React.useMemo(() => {
-    return data.lenses.find((lens) => lens.label === activeLens);
-  }, [data, activeLens, activeCategory]);
+  const values = preparedData.children.map((child) => child.value);
 
-  const preparedData = React.useMemo(() => {
-    return prepareLensData({ data, activeLensData, activeCategory });
-  }, [data, activeLensData, activeCategory]);
-
-  const root = React.useMemo(() => {
-    return hierarchy<Datum>(preparedData)
-      .sum((d) => d.count)
-      .sort((a, b) => {
-        return b.data.count - a.data.count;
-      });
-  }, [preparedData, activeCategory, activeLens]);
-
-  const colorScale = React.useMemo(() => {
-    let domain: [number, number] = [0, 0];
-
-    if (activeCategory) {
-      domain = extent(preparedData.children, (segment) => segment.value);
-    } else {
-      const lens = data.lenses.find((lens) => lens.label === activeLens);
-      if (lens && lens.type === "continuous") {
-        domain = extent(lens.segments, (s) => s.mean);
-      } else {
-        domain = extent(data.segments, (s) => s.count);
-      }
-    }
-
-    return scaleQuantile({
-      domain,
-      range: colorRange2,
-    });
-  }, [preparedData]);
+  const colorScale = useColorScale(values);
 
   return width < 10 ? null : (
     <>
       <LegendQuantile
         scale={colorScale}
-        className="p-3 rounded-md bg-black bg-opacity-50 backdrop-blur-md"
+        className="p-3 rounded-md bg-black bg-opacity-50 backdrop-blur-md text-xs"
         style={{
           position: "absolute",
-          bottom: 12,
+          top: 12,
           right: 12,
           zIndex: 999,
         }}
@@ -448,6 +339,9 @@ export default function Home() {
       numSegments: numSegments,
       numTotalCustomers: 1000000,
     });
+
+    console.log(mockData);
+
     setData(mockData);
   }, [numSegments]);
 
@@ -457,8 +351,8 @@ export default function Home() {
 
   return (
     <LensProvider>
-      <main className="w-full h-full flex">
-        <div className="flex flex-col  flex-shrink-0 p-4">
+      <main className="w-full h-full flex p-5 gap-4">
+        <div className="flex flex-col justify-center">
           <SegmentsTable data={data} />
           <div className="flex flex-col mt-4">
             <label htmlFor="numSegments">Mock segments: {numSegments}</label>
@@ -488,12 +382,19 @@ export default function Home() {
 }
 
 function SegmentsTable({ data }: { data: LandscapeVisualization }) {
-  const { activeLens, activeCategory } = useLensState();
+  const { selectedCategories, activeCategory, activeLens } = useLensState();
+  const { preparedData } = usePreparedData({
+    data,
+    activeCategory,
+    activeLens,
+  });
   const [activeColumnId, setActiveColumnId] = React.useState<string | null>(
     null
   );
 
-  console.log(activeColumnId);
+  const values = preparedData.children.map((child) => child.value);
+
+  const colorScale = useColorScale(values);
 
   const dispatch = useLensDispatch();
 
@@ -508,9 +409,18 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
               className="flex select-none min-w-[100px]"
               onClick={() => {
                 ctx.column.toggleSorting();
+                setActiveColumnId(ctx.column.id);
+                dispatch({
+                  type: "SET_ACTIVE_LENS",
+                  payload: null,
+                });
+                dispatch({
+                  type: "SET_ACTIVE_LENS_CATEGORY",
+                  payload: null,
+                });
               }}
             >
-              Label
+              Segment
               <span className="text-pink-500 ml-2">
                 {{
                   asc: " ↑",
@@ -527,7 +437,18 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
           return (
             <button
               className="flex select-none"
-              onClick={() => ctx.column.toggleSorting()}
+              onClick={() => {
+                ctx.column.toggleSorting();
+                setActiveColumnId(ctx.column.id);
+                dispatch({
+                  type: "SET_ACTIVE_LENS",
+                  payload: null,
+                });
+                dispatch({
+                  type: "SET_ACTIVE_LENS_CATEGORY",
+                  payload: null,
+                });
+              }}
             >
               Count
               <span className="text-pink-500 ml-2">
@@ -549,10 +470,10 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
 
     const lensColumns = data.lenses.map((lens) =>
       columnHelper.accessor(lens.label, {
-        header: (ctx) => (
-          <div
-            onClick={() => {
-              if (lens.type === "continuous") {
+        header: (ctx) =>
+          lens.type === "continuous" ? (
+            <div
+              onClick={() => {
                 dispatch({
                   type: "SET_ACTIVE_LENS",
                   payload: lens.label,
@@ -561,23 +482,43 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                   type: "SET_ACTIVE_LENS_CATEGORY",
                   payload: null,
                 });
-              }
-            }}
-            className="cursor-pointer flex flex-row gap-2 select-none"
-            style={{ cursor: "pointer" }}
-          >
-            {lens.type !== "categorical" ? lens.label : null}
-            <span className="text-pink-500">
-              {{
-                asc: " ↑",
-                desc: " ↓",
-              }[ctx.column.getIsSorted() as string] ?? " "}
-            </span>
-            {lens.type === "categorical" && (
+                ctx.column.toggleSorting();
+                setActiveColumnId(ctx.column.id);
+              }}
+              className="cursor-pointer flex flex-col items-end justify-start gap-1 select-none flex-shrink-0"
+            >
+              <div className="flex flex-shrink-0">
+                {lens.label}
+                <span className="text-pink-500">
+                  {{
+                    asc: " ↑",
+                    desc: " ↓",
+                  }[ctx.column.getIsSorted() as string] ?? " "}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <div
+                className="cursor-pointer flex flex-col items-end justify-start gap-1 select-none flex-shrink-0"
+                onClick={() => {
+                  ctx.column.toggleSorting();
+                  setActiveColumnId(ctx.column.id);
+                }}
+              >
+                {lens.label}
+                <span className="text-pink-500 ml-2">
+                  {{
+                    asc: " ↑",
+                    desc: " ↓",
+                  }[ctx.column.getIsSorted() as string] ?? " "}
+                </span>
+              </div>
               <select
                 className="text-black text-xs"
-                value={activeLens === lens.label ? activeCategory! : ""}
+                value={selectedCategories[lens.label] || ""}
                 onChange={(e) => {
+                  setActiveColumnId(ctx.column.id);
                   dispatch({
                     type: "SET_ACTIVE_LENS",
                     payload: lens.label,
@@ -586,11 +527,16 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                     type: "SET_ACTIVE_LENS_CATEGORY",
                     payload: e.target.value,
                   });
+                  console.log(selectedCategories);
+                  dispatch({
+                    type: "SET_SELECTED_CATEGORY_FOR_LENS",
+                    payload: {
+                      lens: lens.label,
+                      category: e.target.value,
+                    },
+                  });
                 }}
               >
-                <option disabled value="">
-                  {lens.label}
-                </option>
                 {lens.segments[0].categories.map((category, index) => (
                   <option
                     key={`${category.label}-${index}`}
@@ -600,9 +546,8 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                   </option>
                 ))}
               </select>
-            )}
-          </div>
-        ),
+            </div>
+          ),
         cell:
           lens.type === "categorical"
             ? (info) => {
@@ -610,9 +555,10 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                   (s) => s.id === info.row.original.id
                 );
                 const categoryData = lensData?.categories.find(
-                  (c) => c.label === activeCategory
+                  (c) => c.label === selectedCategories[lens.label]
                 );
-                return categoryData?.count.toLocaleString() || 0;
+                const cellData = categoryData || lensData?.categories[0];
+                return cellData?.count.toLocaleString() || 0;
               }
             : (info) => info.getValue().toLocaleString(),
         enableSorting: true,
@@ -625,14 +571,22 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
   const table = useReactTable({
     data: tableData,
     columns,
+    initialState: {
+      sorting: [
+        {
+          id: "count",
+          desc: true,
+        },
+      ],
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     enableSorting: true,
   });
 
   return (
-    <div className="flex flex-col flex-1 max-w-[50vw] overflow-scroll bg-gray-900 rounded-2xl">
-      <table className="text-sm">
+    <div className="flex flex-col max-w-[50vw] overflow-scroll bg-gray-900 rounded-2xl">
+      <table className="text-xs">
         <thead className="sticky-header">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
@@ -644,10 +598,6 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                       : ""
                   } p-2 text-left bg-gray-900`}
                   key={header.id}
-                  onClick={() => {
-                    header.column.toggleSorting();
-                    setActiveColumnId(header.column.id);
-                  }}
                 >
                   {header.isPlaceholder
                     ? null
@@ -660,24 +610,60 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
             </tr>
           ))}
         </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td
-                  key={cell.id}
-                  className={`${
-                    cell.column.id === activeColumnId
-                      ? "bg-gray-800 sticky-column"
-                      : ""
-                  } tabular-nums p-2 border-b border-gray-800`}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
+        <AnimatePresence>
+          <tbody>
+            {table.getRowModel().rows.map((row) => (
+              <tr key={row.id}>
+                {row.getVisibleCells().map((cell) => {
+                  console.log(cell.getValue());
+                  const isActiveCol = cell.column.id === activeColumnId;
+                  const cellValue = cell.getValue();
+                  const backgroundColor =
+                    typeof cellValue === "number"
+                      ? colord(colorScale(cellValue))
+                          .desaturate(isActiveCol ? 0.2 : 0.4)
+                          .darken(isActiveCol ? 0.2 : 0.3)
+                          .toHex()
+                      : "rgba(0,0,0,0)";
+
+                  const borderColor = colord(backgroundColor)
+                    .lighten(0.12)
+                    .toHex();
+
+                  return (
+                    <motion.td
+                      key={cell.id}
+                      initial={{
+                        backgroundColor,
+                      }}
+                      animate={{
+                        backgroundColor,
+                      }}
+                      style={{
+                        backgroundColor,
+                        borderBottomColor: borderColor,
+                      }}
+                      className={` tabular-nums p-2 border-b border-gray-800 ${
+                        typeof cell.getValue() === "number"
+                          ? "text-right"
+                          : "text-left"
+                      } ${
+                        cell.column.id === activeColumnId
+                          ? "bg-gray-800 sticky-column border-gray-700"
+                          : ""
+                      }`}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </motion.td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </AnimatePresence>
       </table>
     </div>
   );
