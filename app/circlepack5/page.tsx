@@ -459,8 +459,9 @@ export default function Home() {
     <LensProvider>
       <main className="w-full h-full flex">
         <div className="flex flex-col  flex-shrink-0 p-4">
-          <div className="flex flex-col mb-4">
-            <label htmlFor="numSegments"># segments {numSegments}</label>
+          <SegmentsTable data={data} />
+          <div className="flex flex-col mt-4">
+            <label htmlFor="numSegments">Mock segments: {numSegments}</label>
             <input
               type="range"
               id="numSegments"
@@ -471,8 +472,6 @@ export default function Home() {
               onChange={(e) => debouncedSetNumSegments(Number(e.target.value))}
             />
           </div>
-
-          <SegmentsTable data={data} />
         </div>
         <div className="flex flex-1 ">
           <>
@@ -506,12 +505,18 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
         header: (ctx) => {
           return (
             <button
-              className="h-8 flex flex-col"
+              className="flex select-none min-w-[100px]"
               onClick={() => {
                 ctx.column.toggleSorting();
               }}
             >
               Label
+              <span className="text-pink-500 ml-2">
+                {{
+                  asc: " ↑",
+                  desc: " ↓",
+                }[ctx.column.getIsSorted() as string] ?? " "}
+              </span>
             </button>
           );
         },
@@ -521,10 +526,16 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
         header: (ctx) => {
           return (
             <button
-              className="h-8 flex flex-col"
+              className="flex select-none"
               onClick={() => ctx.column.toggleSorting()}
             >
               Count
+              <span className="text-pink-500 ml-2">
+                {{
+                  asc: " ↑",
+                  desc: " ↓",
+                }[ctx.column.getIsSorted() as string] ?? " "}
+              </span>
             </button>
           );
         },
@@ -552,10 +563,16 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                 });
               }
             }}
-            className="cursor-pointer flex flex-col h-8 hover:bg-gray-800 active:bg-gray-600 mr-2"
+            className="cursor-pointer flex flex-row gap-2 select-none"
             style={{ cursor: "pointer" }}
           >
             {lens.type !== "categorical" ? lens.label : null}
+            <span className="text-pink-500">
+              {{
+                asc: " ↑",
+                desc: " ↓",
+              }[ctx.column.getIsSorted() as string] ?? " "}
+            </span>
             {lens.type === "categorical" && (
               <select
                 className="text-black text-xs"
@@ -614,46 +631,54 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
   });
 
   return (
-    <table className="text-sm">
-      <thead>
-        {table.getHeaderGroups().map((headerGroup) => (
-          <tr key={headerGroup.id}>
-            {headerGroup.headers.map((header) => (
-              <th
-                className={`${
-                  header.id === activeColumnId ? "bg-red-600" : ""
-                } p-2 text-left`}
-                key={header.id}
-                onClick={() => {
-                  header.column.toggleSorting();
-                  setActiveColumnId(header.column.id);
-                }}
-              >
-                {header.isPlaceholder
-                  ? null
-                  : flexRender(
-                      header.column.columnDef.header,
-                      header.getContext()
-                    )}
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map((row) => (
-          <tr key={row.id}>
-            {row.getVisibleCells().map((cell) => (
-              <td
-                key={cell.id}
-                className="tabular-nums p-2 border-b border-gray-800"
-              >
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="flex flex-col flex-1 max-w-[50vw] overflow-scroll bg-gray-900 rounded-2xl">
+      <table className="text-sm">
+        <thead className="sticky-header">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <th
+                  className={`${
+                    header.id === activeColumnId
+                      ? "bg-gray-800 sticky-column"
+                      : ""
+                  } p-2 text-left bg-gray-900`}
+                  key={header.id}
+                  onClick={() => {
+                    header.column.toggleSorting();
+                    setActiveColumnId(header.column.id);
+                  }}
+                >
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id}>
+              {row.getVisibleCells().map((cell) => (
+                <td
+                  key={cell.id}
+                  className={`${
+                    cell.column.id === activeColumnId
+                      ? "bg-gray-800 sticky-column"
+                      : ""
+                  } tabular-nums p-2 border-b border-gray-800`}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

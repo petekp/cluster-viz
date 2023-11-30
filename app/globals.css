@@ -30,3 +30,15 @@ body {
     )
     rgb(var(--background-start-rgb));
 }
+
+.sticky-column {
+  position: sticky;
+  left: 0;
+  z-index: 1; /* To make sure it overlays other cells when scrolling */
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 2; /* To make sure it overlays other cells when scrolling */
+}
