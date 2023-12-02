@@ -12,6 +12,7 @@ import { Pack } from "@visx/hierarchy";
 import { scaleSqrt } from "@visx/scale";
 import { LegendQuantile } from "@visx/legend";
 import { colord } from "colord";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
 import {
   createColumnHelper,
   flexRender,
@@ -351,31 +352,38 @@ export default function Home() {
 
   return (
     <LensProvider>
-      <main className="w-full h-full flex p-5 gap-4">
-        <div className="flex flex-col justify-center">
-          <SegmentsTable data={data} />
-          <div className="flex flex-col mt-4">
-            <label htmlFor="numSegments">Mock segments: {numSegments}</label>
-            <input
-              type="range"
-              id="numSegments"
-              name="numSegments"
-              min="1"
-              max="100"
-              value={numSegments}
-              onChange={(e) => debouncedSetNumSegments(Number(e.target.value))}
-            />
-          </div>
-        </div>
-        <div className="flex flex-1 ">
-          <>
+      <main className="flex h-full w-full gap-4 p-5">
+        <PanelGroup direction="horizontal">
+          <Panel minSizePercentage={25}>
+            <div className="flex flex-col justify-center">
+              <SegmentsTable data={data} />
+              <div className="mt-4 flex max-w-xl flex-col">
+                <label htmlFor="numSegments">
+                  Mock segments: {numSegments}
+                </label>
+                <input
+                  type="range"
+                  id="numSegments"
+                  name="numSegments"
+                  min="1"
+                  max="100"
+                  value={numSegments}
+                  onChange={(e) =>
+                    debouncedSetNumSegments(Number(e.target.value))
+                  }
+                />
+              </div>
+            </div>
+          </Panel>
+          <PanelResizeHandle className="w-2 rounded-full bg-gray-900 transition-all hover:bg-gray-700" />
+          <Panel minSizePercentage={25}>
             <ParentSize>
               {({ width, height }) => (
                 <LandscapeViz data={data} width={width} height={height} />
               )}
             </ParentSize>
-          </>
-        </div>
+          </Panel>
+        </PanelGroup>
       </main>
     </LensProvider>
   );
