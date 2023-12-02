@@ -130,8 +130,8 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
         labelTransform={transformlabel}
       />
 
-      <motion.svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
-        <Pack<Datum> root={root} size={[width, height]} padding={10}>
+      <motion.svg width="100%" height="100%" viewBox={`0 0 600 500`} preserveAspectRatio="xMidYMid meet">
+        <Pack<Datum> root={root} size={[600, 500]} padding={10}>
           {(packData) => {
             const circles = packData.descendants().slice(1);
             const lens = data.lenses.find((lens) => lens.label === activeLens);
