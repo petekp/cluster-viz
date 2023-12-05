@@ -73,7 +73,7 @@ export function generateMockData({
     });
   }
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const numCategories = random(2, 5, false); // Ensure at least two categories
 
     mockCategoricalLenses.push({

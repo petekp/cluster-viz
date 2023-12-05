@@ -186,3 +186,72 @@ export function usePreparedDataNewest(
 
   return { root, lensValues };
 }
+
+export function prepareTableDataForSegments(data: LandscapeVisualization) {
+  const columnMinMax: Record<
+    string,
+    Record<string, { min: number; max: number }>
+  > = {};
+
+  const tableData = data.segments.map((segment) => {
+    const row: any = {
+      id: segment.id,
+      label: segment.label,
+      count: segment.count,
+    };
+
+    data.lenses.forEach((lens) => {
+      const lensData = lens.segments.find((s) => s.id === segment.id);
+      if (lensData) {
+        if (lens.type === "continuous") {
+          row[lens.label] = lensData.mean;
+
+          // Calculate min and max for the column
+          if (!columnMinMax[lens.label]) {
+            columnMinMax[lens.label] = {
+              min: lensData.mean,
+              max: lensData.mean,
+            };
+          } else {
+            columnMinMax[lens.label].min = Math.min(
+              columnMinMax[lens.label].min,
+              lensData.mean,
+            );
+            columnMinMax[lens.label].max = Math.max(
+              columnMinMax[lens.label].max,
+              lensData.mean,
+            );
+          }
+        } else if (lens.type === "categorical") {
+          row[lens.label] = lensData.categories;
+
+          // Calculate min and max for each category in the column
+          lensData.categories.forEach((category) => {
+            if (!columnMinMax[lens.label]) {
+              columnMinMax[lens.label] = {};
+            }
+            if (!columnMinMax[lens.label][category.label]) {
+              columnMinMax[lens.label][category.label] = {
+                min: category.count,
+                max: category.count,
+              };
+            } else {
+              columnMinMax[lens.label][category.label].min = Math.min(
+                columnMinMax[lens.label][category.label].min,
+                category.count,
+              );
+              columnMinMax[lens.label][category.label].max = Math.max(
+                columnMinMax[lens.label][category.label].max,
+                category.count,
+              );
+            }
+          });
+        }
+      }
+    });
+
+    return row;
+  });
+
+  return { tableData, columnMinMax };
+}

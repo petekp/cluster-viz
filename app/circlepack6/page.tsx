@@ -9,7 +9,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 import { Group } from "@visx/group";
 import { Pack, hierarchy } from "@visx/hierarchy";
-import { scaleSqrt } from "@visx/scale";
+import { scaleQuantile, scaleSqrt } from "@visx/scale";
 import { LegendQuantile } from "@visx/legend";
 import { colord } from "colord";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -24,8 +24,12 @@ import {
 import { LandscapeVisualization, Segment, generateMockData } from "./mockData";
 import { debounce } from "lodash";
 import { LensProvider, useLensDispatch, useLensState } from "./LensContext";
-import usePreparedData, { usePreparedDataNewest } from "./usePreparedData";
+import usePreparedData, {
+  prepareTableDataForSegments,
+  usePreparedDataNewest,
+} from "./usePreparedData";
 import useColorScale from "./useColorScale";
+import { colorRange2 } from "../circlepack5/useColorScale";
 
 const transitionConfig = {
   type: "spring",
@@ -108,9 +112,7 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
   );
 
   // console.log(visualizationData);
-
   // const values = preparedData.children.map((child) => child.value);
-
   // const colorScale = useColorScale(values);
 
   return width < 10 ? null : (
@@ -361,23 +363,42 @@ export default function Home() {
 
 function SegmentsTable({ data }: { data: LandscapeVisualization }) {
   const { selectedCategories, activeCategory, activeLens } = useLensState();
-  const { preparedData } = usePreparedData({
-    data,
-    activeCategory,
-    activeLens,
-  });
+  const dispatch = useLensDispatch();
+  const { tableData, columnMinMax } = useMemo(
+    () => prepareTableDataForSegments(data),
+    [data],
+  );
+  const columnHelper = createColumnHelper<any>();
   const [activeColumnId, setActiveColumnId] = React.useState<string | null>(
     null,
   );
 
-  const values = preparedData.children.map((child) => child.value);
+  const colorScales: Record<
+    string,
+    Record<string, (value: number) => string>
+  > = {};
 
-  const colorScale = useColorScale(values);
+  Object.entries(columnMinMax).forEach(([lensLabel, categories]) => {
+    colorScales[lensLabel] = {};
+    Object.entries(columnMinMax).forEach(([lensLabel, categories]) => {
+      const lens = data.lenses.find((lens) => lens.label === lensLabel);
+      if (lens.type === "continuous") {
+        colorScales[lensLabel] = scaleQuantile({
+          domain: [categories.min, categories.max],
+          range: colorRange2,
+        });
+      } else {
+        colorScales[lensLabel] = {};
+        Object.entries(categories).forEach(([categoryLabel, { min, max }]) => {
+          colorScales[lensLabel][categoryLabel] = scaleQuantile({
+            domain: [min, max],
+            range: colorRange2,
+          });
+        });
+      }
+    });
+  });
 
-  const dispatch = useLensDispatch();
-
-  const tableData = React.useMemo(() => prepareTableData(data), [data]);
-  const columnHelper = createColumnHelper<any>();
   const columns = React.useMemo(() => {
     const baseColumns = [
       columnHelper.accessor("label", {
@@ -528,6 +549,8 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
         cell:
           lens.type === "categorical"
             ? (info) => {
+                const isActiveCol = info.cell.column.id === activeColumnId;
+
                 const lensData = lens.segments.find(
                   (s) => s.id === info.row.original.id,
                 );
@@ -535,9 +558,57 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                   (c) => c.label === selectedCategories[lens.label],
                 );
                 const cellData = categoryData || lensData?.categories[0];
-                return cellData?.count.toLocaleString() || 0;
+
+                const backgroundColor =
+                  typeof cellData.count === "number"
+                    ? colord(
+                        colorScales[lens.label][cellData.label](cellData.count),
+                      )
+                        .desaturate(isActiveCol ? 0.2 : 0.4)
+                        .darken(isActiveCol ? 0.2 : 0.3)
+                        .toHex()
+                    : "rgba(0,0,0,0)";
+
+                const borderColor = colord(backgroundColor)
+                  .lighten(0.12)
+                  .toHex();
+
+                return (
+                  <div
+                    className=" flex h-4 border-b"
+                    style={{ backgroundColor, borderColor }}
+                  >
+                    {cellData?.count.toLocaleString() || 0}
+                  </div>
+                );
               }
-            : (info) => info.getValue().toLocaleString(),
+            : (info) => {
+                const lensData = lens.segments.find(
+                  (s) => s.id === info.row.original.id,
+                );
+                const isActiveCol = info.cell.column.id === activeColumnId;
+                console.log(colorScales[lens.label](lensData?.mean));
+                const backgroundColor =
+                  typeof lensData.mean === "number"
+                    ? colord(colorScales[lens.label](lensData?.mean))
+                        .desaturate(isActiveCol ? 0.2 : 0.4)
+                        .darken(isActiveCol ? 0.2 : 0.3)
+                        .toHex()
+                    : "rgba(0,0,0,0)";
+
+                const borderColor = colord(backgroundColor)
+                  .lighten(0.12)
+                  .toHex();
+
+                return (
+                  <div
+                    className=" flex h-4 border-b"
+                    style={{ backgroundColor, borderColor }}
+                  >
+                    {info.getValue().toLocaleString()}
+                  </div>
+                );
+              },
         enableSorting: true,
       }),
     );
@@ -592,34 +663,10 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => {
-                  const isActiveCol = cell.column.id === activeColumnId;
-                  const cellValue = cell.getValue();
-                  const backgroundColor =
-                    typeof cellValue === "number"
-                      ? colord(colorScale(cellValue))
-                          .desaturate(isActiveCol ? 0.2 : 0.4)
-                          .darken(isActiveCol ? 0.2 : 0.3)
-                          .toHex()
-                      : "rgba(0,0,0,0)";
-
-                  const borderColor = colord(backgroundColor)
-                    .lighten(0.12)
-                    .toHex();
-
                   return (
                     <motion.td
                       key={cell.id}
-                      initial={{
-                        backgroundColor,
-                      }}
-                      animate={{
-                        backgroundColor,
-                      }}
-                      style={{
-                        backgroundColor,
-                        borderBottomColor: borderColor,
-                      }}
-                      className={` border-b border-gray-800 p-2 tabular-nums ${
+                      className={` border-b border-gray-800  tabular-nums ${
                         typeof cell.getValue() === "number"
                           ? "text-right"
                           : "text-left"
