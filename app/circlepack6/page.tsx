@@ -4,12 +4,12 @@
 
 // The visualization is controlled through the table on the left. The table supports sorting and filtering. The table also supports selecting a lens and a category. The visualization will update to reflect the selected lens and category.
 
-import React, { Fragment } from "react";
+import React, { Fragment, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import ParentSize from "@visx/responsive/lib/components/ParentSize";
 import { Group } from "@visx/group";
-import { Pack } from "@visx/hierarchy";
-import { scaleQuantize, scaleSqrt } from "@visx/scale";
+import { Pack, hierarchy } from "@visx/hierarchy";
+import { scaleSqrt } from "@visx/scale";
 import { LegendQuantile } from "@visx/legend";
 import { colord } from "colord";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -21,15 +21,10 @@ import {
   getSortedRowModel,
 } from "@tanstack/react-table";
 
-import {
-  ContinuousLens,
-  LandscapeVisualization,
-  Segment,
-  generateMockData,
-} from "./mockData";
+import { LandscapeVisualization, Segment, generateMockData } from "./mockData";
 import { debounce } from "lodash";
 import { LensProvider, useLensDispatch, useLensState } from "./LensContext";
-import usePreparedData from "./usePreparedData";
+import usePreparedData, { usePreparedDataNewest } from "./usePreparedData";
 import useColorScale from "./useColorScale";
 
 const transitionConfig = {
@@ -106,21 +101,23 @@ export type Datum = Segment & { children: Segment[]; value: number };
 
 function LandscapeViz({ width, height, data }: LandscapeVizProps) {
   const { activeLens, activeCategory } = useLensState();
-  const { preparedData, root } = usePreparedData({
+  const { root, lensValues } = usePreparedDataNewest(
     data,
     activeLens,
     activeCategory,
-  });
+  );
 
-  const values = preparedData.children.map((child) => child.value);
+  // console.log(visualizationData);
 
-  const colorScale = useColorScale(values);
+  // const values = preparedData.children.map((child) => child.value);
+
+  // const colorScale = useColorScale(values);
 
   return width < 10 ? null : (
     <>
-      <LegendQuantile
+      {/* <LegendQuantile
         scale={colorScale}
-        className="rounded-md bg-black bg-opacity-50 p-3 text-xs backdrop-blur-md"
+        className="p-3 rounded-md bg-black bg-opacity-50 backdrop-blur-md text-xs"
         style={{
           position: "absolute",
           top: 12,
@@ -128,7 +125,7 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
           zIndex: 999,
         }}
         labelTransform={transformlabel}
-      />
+      /> */}
 
       <motion.svg
         width="100%"
@@ -139,8 +136,6 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
         <Pack<Datum> root={root} size={[600, 500]} padding={10}>
           {(packData) => {
             const circles = packData.descendants().slice(1);
-            const lens = data.lenses.find((lens) => lens.label === activeLens);
-            const lensSegments = lens ? lens.segments : [];
 
             return (
               <>
@@ -149,47 +144,19 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
                   transform={`translate(${0}, ${0})`}
                 >
                   {circles.map((circle, i) => {
-                    const segment = lensSegments.find(
-                      (segment) => segment.id === circle.data.id,
-                    ) as ContinuousLens["segments"][0];
-
-                    const fill =
-                      activeCategory || !segment
-                        ? colorScale(circle.data.count)
-                        : colorScale(segment.mean);
+                    const lensValue = lensValues[circle.data.id];
+                    const fill = "green";
 
                     const isFillLight = colord(fill).isLight();
                     const lightFill = colord(fill).lighten(0.8).toHex();
                     const darkFill = colord(fill).darken(0.8).toHex();
                     const labelColor = isFillLight ? darkFill : lightFill;
 
-                    if (!circle.r || !circle.x || !circle.y) {
-                      return null;
-                    }
-
-                    let innerCircleRadius;
-                    if (!activeLens) {
-                      innerCircleRadius = circle.r;
-                    } else if (!activeCategory) {
-                      innerCircleRadius =
-                        (segment.mean / segment.max) * circle.r;
-                    } else {
-                      // Use a square root scale for the inner circle radius
-                      const sqrtScale = scaleSqrt({
-                        domain: [
-                          0,
-                          Math.max(
-                            ...preparedData.children.map((d) => d.value),
-                          ),
-                        ],
-                        range: [0, circle.r],
-                      });
-                      innerCircleRadius = sqrtScale(circle.data.value);
-                    }
+                    const innerCircleRadius = circle.r * lensValue;
 
                     return (
-                      <Fragment key={`circle-${i}`}>
-                        <defs key={`inner-stroke-${i}`}>
+                      <Fragment key={`circle-${circle.data.label}`}>
+                        <defs>
                           <mask id={`inner-stroke-${i}`}>
                             <rect width="50%" height="50%" fill="white" />
                             <circle cx="50%" cy="50%" r="45%" fill="black" />
@@ -225,7 +192,7 @@ function LandscapeViz({ width, height, data }: LandscapeVizProps) {
                         />
                         <motion.circle
                           key={`circle-segment-outer-${circle.data.label}`}
-                          mask={`url(#${`inner-stroke-${i}`}})`}
+                          mask={`url(#${`inner-stroke-${circle.data.label}`}})`}
                           filter="url(#inner-stroke-filter)"
                           initial={{
                             fill,
@@ -346,8 +313,6 @@ export default function Home() {
       numTotalCustomers: 1000000,
     });
 
-    console.log(mockData);
-
     setData(mockData);
   }, [numSegments]);
 
@@ -409,25 +374,6 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
 
   const colorScale = useColorScale(values);
 
-  const getColorScale = (values: number[]) => {
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    return scaleQuantize({
-      domain: [min, max],
-      range: [
-        "#f7fcf0",
-        "#e0f3db",
-        "#ccebc5",
-        "#a8ddb5",
-        "#7bccc4",
-        "#4eb3d3",
-        "#2b8cbe",
-        "#0868ac",
-        "#084081",
-      ],
-    });
-  };
-
   const dispatch = useLensDispatch();
 
   const tableData = React.useMemo(() => prepareTableData(data), [data]);
@@ -462,9 +408,7 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
             </button>
           );
         },
-        cell: (info) => {
-          return info.getValue();
-        },
+        cell: (info) => info.getValue(),
       }),
       columnHelper.accessor("count", {
         header: (ctx) => {
@@ -561,7 +505,6 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
                     type: "SET_ACTIVE_LENS_CATEGORY",
                     payload: e.target.value,
                   });
-                  console.log(selectedCategories);
                   dispatch({
                     type: "SET_SELECTED_CATEGORY_FOR_LENS",
                     payload: {
@@ -649,7 +592,6 @@ function SegmentsTable({ data }: { data: LandscapeVisualization }) {
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => {
-                  console.log(cell.getValue());
                   const isActiveCol = cell.column.id === activeColumnId;
                   const cellValue = cell.getValue();
                   const backgroundColor =

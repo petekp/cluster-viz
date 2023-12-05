@@ -7,13 +7,7 @@ function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];
 }
 
-export const colorRange2 = [
-  "#3900DC",
-  "#6D29FF",
-  "#AB00FC",
-  "#E40089",
-  "#FF1D38",
-];
+const colorRange2 = ["#3900DC", "#6D29FF", "#AB00FC", "#E40089", "#FF1D38"];
 
 export default function useColorScale(values: number[]) {
   const colorScale = useMemo(() => {
