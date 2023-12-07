@@ -14,7 +14,7 @@ import {
 
 import { useLensDispatch, useLensState } from "./LensContext";
 import { usePreparedTableData } from "./usePreparedData";
-import { colorScaleRange } from "./config";
+import { colorScaleRange } from "./animation";
 import {
   CategoricalLens,
   ContinuousLens,

@@ -1,4 +1,5 @@
 import { LegendQuantile } from "@visx/legend";
+import { usePreparedVizData } from "./usePreparedData";
 
 function transformlabel({
   scale,

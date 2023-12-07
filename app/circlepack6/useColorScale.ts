@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { scaleQuantile } from "@visx/scale";
-import { colorScaleRange } from "./config";
+import { colorScaleRange } from "./animation";
 
 function extent<D>(allData: D[], value: (d: D) => number): [number, number] {
   return [Math.min(...allData.map(value)), Math.max(...allData.map(value))];

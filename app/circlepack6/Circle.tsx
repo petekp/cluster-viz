@@ -1,6 +1,6 @@
 import { SVGMotionProps, motion } from "framer-motion";
 
-import { transitionConfig } from "./config";
+import { transitionConfig } from "./animation";
 
 type Circle = {
   x: number;
