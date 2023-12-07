@@ -5,189 +5,113 @@ import {
   LandscapeVisualization,
 } from "./mockData";
 import { hierarchy } from "@visx/hierarchy";
-import { Datum } from "./page";
-
-export default function usePreparedData({
-  data,
-  activeLens,
-  activeCategory,
-}: {
-  data: LandscapeVisualization;
-  activeLens: string | null;
-  activeCategory: string | null;
-}) {
-  const activeLensData = useMemo(() => {
-    return data.lenses.find((lens) => lens.label === activeLens);
-  }, [data, activeLens, activeCategory]);
-
-  const preparedData = useMemo(() => {
-    return prepareLensData({ data, activeLensData, activeCategory });
-  }, [data, activeLensData, activeCategory]);
-
-  const root = useMemo(() => {
-    return hierarchy<Datum>(preparedData)
-      .sum((d) => d.count)
-      .sort((a, b) => {
-        return b.data.count - a.data.count;
-      });
-  }, [preparedData, activeCategory, activeLens]);
-
-  return { preparedData, root } as const;
-}
-
-function prepareLensData({
-  data,
-  activeCategory,
-  activeLensData,
-}: {
-  data: LandscapeVisualization;
-  activeCategory: string | null;
-  activeLensData: CategoricalLens | ContinuousLens | undefined;
-}) {
-  if (
-    activeLensData &&
-    activeLensData.type === "categorical" &&
-    activeCategory
-  ) {
-    const maxCount = Math.max(
-      ...activeLensData.segments.map(
-        (segment) =>
-          segment.categories.find((c) => c.label === activeCategory)?.count ||
-          0,
-      ),
-    );
-
-    return {
-      id: "root",
-      label: "root",
-      description: "",
-      count: 0,
-      value: 0,
-      children: data.segments.map((segment) => {
-        const matchingSegment = activeLensData.segments.find(
-          (s) => s.id === segment.id,
-        );
-        const matchingCategory = matchingSegment?.categories.find(
-          (c) => c.label === activeCategory,
-        );
-        const value = matchingCategory
-          ? (matchingCategory.count / maxCount) * segment.count
-          : 0;
-        return {
-          ...segment,
-          value,
-        };
-      }),
-    };
-  }
-
-  if (activeLensData && activeLensData.type === "continuous") {
-    return {
-      id: "",
-      children: data.segments.map((segment) => {
-        const matchingSegment = activeLensData.segments.find(
-          (s) => s.id === segment.id,
-        );
-        return {
-          ...segment,
-          value: matchingSegment ? matchingSegment.mean : 0,
-        };
-      }),
-      label: "root",
-      description: "",
-      count: 0,
-      value: 0,
-    };
-  }
-
-  return {
-    id: "root",
-    children: data.segments.map((segment) => ({
-      ...segment,
-      value: segment.count,
-    })),
-    label: "",
-    description: "",
-    count: 0,
-    value: 0,
-  };
-}
+import { scaleQuantile } from "@visx/scale";
+import { colorScaleRange } from "./config";
 
 function createHierarchy(data: LandscapeVisualization) {
   return hierarchy({
     id: "root",
+    label: "root",
+    description: "",
+    value: data.totalCount,
+    count: data.totalCount,
     children: data.segments.map((segment) => ({
       id: segment.id,
       label: segment.label,
       value: segment.count,
+      description: segment.description,
+      count: segment.count,
     })),
-    value: data.totalCount,
-  }).sum((d) => d.value);
+  })
+    .sum((d) => d.value)
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
 }
 
-export function usePreparedDataNewest(
-  data: LandscapeVisualization,
-  activeLens: string | null,
-  activeCategory: string | null,
-) {
+function getColorScaleValue(domain: [number, number], value: number) {
+  const colorScale = scaleQuantile({
+    domain,
+    range: colorScaleRange,
+  });
+
+  return colorScale(value);
+}
+
+export function usePreparedVizData(data: LandscapeVisualization) {
   const lensValues = useMemo(() => {
-    const activeLensData = data.lenses.find(
-      (lens) => lens.label === activeLens,
-    );
+    return data.lenses.reduce(
+      (acc, lens) => {
+        const allCounts = data.segments.map((segment) => segment.count);
+        const minCount = Math.min(...allCounts);
+        const maxCount = Math.max(...allCounts);
 
-    if (
-      activeLensData &&
-      activeLensData.type === "categorical" &&
-      activeCategory
-    ) {
-      return activeLensData.segments.reduce(
-        (acc, segment) => {
-          const matchingCategory = segment.categories.find(
-            (c) => c.label === activeCategory,
+        console.log("minCount", minCount);
+        console.log("maxCount", maxCount);
+
+        acc.default = data.segments.reduce(
+          (segmentAcc, segment) => {
+            const color = getColorScaleValue(
+              [minCount, maxCount],
+              segment.count,
+            );
+            segmentAcc[segment.id] = {
+              value: 1,
+              color,
+            };
+            return segmentAcc;
+          },
+          {} as Record<string, { value: number; color: string }>,
+        );
+
+        if (lens.type === "continuous") {
+          const segmentCounts = lens.segments.map((segment) => segment.mean);
+          const minCount = Math.min(...segmentCounts);
+          const maxCount = Math.max(...segmentCounts);
+
+          acc[lens.label] = lens.segments.reduce(
+            (segmentAcc, segment) => {
+              const normalizedValue = segment.mean / segment.max;
+              segmentAcc[segment.id] = {
+                value: normalizedValue,
+                color: getColorScaleValue([minCount, maxCount], segment.mean),
+              };
+              return segmentAcc;
+            },
+            {} as Record<string, { value: number; color: string }>,
           );
+        }
 
-          const segmentTotalCount = segment.categories.reduce(
-            (acc, category) => acc + category.count,
-            0,
-          );
+        if (lens.type === "categorical") {
+          lens.segments.forEach((segment) => {
+            const segmentTotalCount = segment.categories.reduce(
+              (categoryAcc, category) => categoryAcc + category.count,
+              0,
+            );
 
-          console.log({ segment });
+            segment.categories.forEach((category) => {
+              const key = `${lens.label}-${category.label}`;
+              if (!acc[key]) {
+                acc[key] = {};
+              }
+              acc[key][segment.id] = category.count / segmentTotalCount;
+            });
+          });
+        }
 
-          acc[segment.id] = matchingCategory
-            ? matchingCategory.count / segmentTotalCount
-            : 0;
-          return acc;
-        },
-        {} as Record<string, number>,
-      );
-    }
-
-    if (activeLensData && activeLensData.type === "continuous") {
-      return activeLensData.segments.reduce(
-        (acc, segment) => {
-          acc[segment.id] = segment.mean / segment.max;
-          return acc;
-        },
-        {} as Record<string, number>,
-      );
-    }
-
-    // Default case when there is no active lens or category
-    return data.segments.reduce(
-      (acc, segment) => {
-        acc[segment.id] = 1;
         return acc;
       },
-      {} as Record<string, number>,
+      {} as Record<
+        string,
+        Record<string, { value: number; color: string } | number>
+      >,
     );
-  }, [data, activeLens, activeCategory]);
+  }, [data]);
 
   const root = useMemo(() => createHierarchy(data), [data]);
 
   return { root, lensValues };
 }
 
-export function prepareTableDataForSegments(data: LandscapeVisualization) {
+export function usePreparedTableData(data: LandscapeVisualization) {
   const columnMinMax: Record<
     string,
     Record<string, { min: number; max: number }>
@@ -203,8 +127,10 @@ export function prepareTableDataForSegments(data: LandscapeVisualization) {
     data.lenses.forEach((lens) => {
       const lensData = lens.segments.find((s) => s.id === segment.id);
       if (lensData) {
-        if (lens.type === "continuous") {
-          row[lens.label] = lensData.mean;
+        if (lens.type === "continuous" && "mean" in lensData) {
+          const continuousLens = lens as ContinuousLens;
+
+          row[continuousLens.label] = lensData.mean;
 
           // Calculate min and max for the column
           if (!columnMinMax[lens.label]) {
@@ -222,8 +148,11 @@ export function prepareTableDataForSegments(data: LandscapeVisualization) {
               lensData.mean,
             );
           }
-        } else if (lens.type === "categorical") {
-          row[lens.label] = lensData.categories;
+        }
+
+        if (lens.type === "categorical" && "categories" in lensData) {
+          const categoricalLens = lens as CategoricalLens;
+          row[categoricalLens.label] = lensData.categories;
 
           // Calculate min and max for each category in the column
           lensData.categories.forEach((category) => {
